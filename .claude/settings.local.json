@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(if exist .git rmdir /s /q .git)",
+      "Bash(git init:*)",
+      "Bash(if [ -d \"finance-hub-main/.git\" ])",
+      "Bash(then rm -rf \"finance-hub-main/.git\")",
+      "Bash(else echo \"No existe repositorio en finance-hub-main\")",
+      "Bash(fi)"
+    ]
+  }
+}

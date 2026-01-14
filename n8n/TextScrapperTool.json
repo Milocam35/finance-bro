@@ -1,0 +1,993 @@
+{
+  "name": "TextScrapperTool",
+  "nodes": [
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "009cb7c7-05b0-45aa-aec0-6776f0241a2c",
+              "name": "url",
+              "value": "={{$json[\"url\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "3fcb2855-40a3-4f85-82b9-10f133006084",
+              "name": "pdf_url",
+              "value": "={{ $json['URL del PDF (opcional)'] }}",
+              "type": "string"
+            },
+            {
+              "id": "ce3e13ba-dcf0-4a18-8bc5-a40a3780cad7",
+              "name": "has_pdf",
+              "value": "={{ $json['URL del PDF (opcional)'] && $json['URL del PDF (opcional)'].trim() !== ''  }}",
+              "type": "string"
+            },
+            {
+              "id": "e1dc0259-6002-4e58-9061-e07a7c820b4f",
+              "name": "target_url",
+              "value": "={{ $json['URL del home (Para paginas con anti-bot avanzado)'] }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -48,
+        176
+      ],
+      "id": "93f60eb9-0eba-4966-888a-54e5938eaa20",
+      "name": "Set Domain"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "220983c4-9166-4e09-b8f1-ee013607d03e",
+              "name": "finalUrl",
+              "value": "={{$json[\"url\"].startsWith(\"http\") ? $json[\"url\"] : \"https://\" + $json[\"url\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "2ee8e640-441a-4736-9a15-c6203d794c6c",
+              "name": "pdf_url",
+              "value": "={{ $json.pdf_url.startsWith(\"https\") ? $json.pdf_url : \"https://\" + $json.pdf_url }}",
+              "type": "string"
+            },
+            {
+              "id": "74bd8d2c-1ef2-4179-bccf-eb504b609333",
+              "name": "has_pdf",
+              "value": "={{ $json.has_pdf === 'true'}}",
+              "type": "boolean"
+            },
+            {
+              "id": "92746361-a703-40ed-a985-e20825326039",
+              "name": "target_url",
+              "value": "={{ $json.target_url.startsWith(\"https\") ? $json.target_url : \"https://\" + $json.target_url }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        144,
+        176
+      ],
+      "id": "5df20fd2-27b0-4009-a162-1021bc3ecbe5",
+      "name": "Add Protocol To Domain"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// NODO: Extract Body HTML - OPTIMIZADO CON CHEERIO\n// ============================================\n// Extrae SOLO contenido relevante para tasas de crédito usando Cheerio\n\nconst cheerio = require('cheerio');\nconst html = $input.first().json.data || '';\n\n// Cargar HTML con Cheerio\nconst $ = cheerio.load(html);\n\n// Palabras clave para filtrar contenido relevante\nconst KEYWORDS = [\n  'tasa', 'tasas', 'crédito', 'credito', 'hipotecario', 'hipotecaria',\n  'vivienda', 'vis', 'uvr', 'pesos', 'ea', 'efectivo anual',\n  'interés', 'interes', 'plazo', 'cuota', 'monto', 'financiación',\n  'leasing', 'habitacional', 'smmlv', 'salario', 'mensual',\n  'desde', 'hasta', 'fija', 'variable', 'subsidio'\n];\n\nfunction cleanText(text) {\n  return text.replace(/\\s+/g, ' ').trim();\n}\n\nfunction isRelevant(text) {\n  if (!text || text.length < 10) return false;\n  const lowerText = text.toLowerCase();\n  return KEYWORDS.some(keyword => lowerText.includes(keyword));\n}\n\n// Eliminar elementos no deseados\n$('script, style, noscript, nav, footer, header, iframe, form').remove();\n\n// ============================================\n// EXTRAER TABLAS (crítico para tasas)\n// ============================================\nconst tables = [];\n\n$('table').each((i, table) => {\n  const tableText = $(table).text();\n  \n  if (isRelevant(tableText)) {\n    const rows = [];\n    \n    $(table).find('tr').each((j, row) => {\n      const cells = [];\n      $(row).find('td, th').each((k, cell) => {\n        const cellText = cleanText($(cell).text());\n        if (cellText) cells.push(cellText);\n      });\n      if (cells.length > 0) rows.push(cells.join(' | '));\n    });\n    \n    if (rows.length > 0) {\n      tables.push(rows.join('\\n'));\n    }\n  }\n});\n\n// ============================================\n// EXTRAER PÁRRAFOS RELEVANTES\n// ============================================\nconst relevantParagraphs = [];\nconst seen = new Set();\n\n$('p, div, span, li, td, th').each((i, elem) => {\n  const text = cleanText($(elem).text());\n  \n  if (text.length > 20 && text.length < 1000 && isRelevant(text)) {\n    if (!seen.has(text)) {\n      seen.add(text);\n      relevantParagraphs.push(text);\n    }\n  }\n});\n\n// ============================================\n// EXTRAER LISTAS RELEVANTES\n// ============================================\nconst lists = [];\n\n$('ul, ol').each((i, list) => {\n  const listText = cleanText($(list).text());\n  \n  if (isRelevant(listText) && listText.length > 30) {\n    const items = [];\n    \n    $(list).find('li').each((j, item) => {\n      const itemText = cleanText($(item).text());\n      if (itemText.length > 5) {\n        items.push('• ' + itemText);\n      }\n    });\n    \n    if (items.length > 0) {\n      lists.push(items.join('\\n'));\n    }\n  }\n});\n\n// ============================================\n// EXTRAER HEADINGS\n// ============================================\nconst headings = [];\nconst pageTitle = $('title').text().trim();\n\n$('h1, h2, h3').each((i, heading) => {\n  const text = cleanText($(heading).text());\n  const tagName = $(heading).prop('tagName');\n  const level = parseInt(tagName.replace('H', ''));\n  \n  if (text && text.length > 3) {\n    headings.push({ level, text });\n  }\n});\n\n// ============================================\n// CONSTRUIR TEXTO OPTIMIZADO\n// ============================================\nconst optimizedText = [\n  ...relevantParagraphs.slice(0, 50),\n  ...lists.slice(0, 10)\n].join('\\n\\n');\n\nconst tablesText = tables.slice(0, 10).join('\\n---\\n');\n\nreturn {\n  json: {\n    type: 'body_content',\n    title: pageTitle,\n    headings: headings.slice(0, 20),\n    tables: tablesText,\n    relevant_content: optimizedText,\n    stats: {\n      tables_found: tables.length,\n      paragraphs_found: relevantParagraphs.length,\n      lists_found: lists.length\n    }\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        832,
+        160
+      ],
+      "id": "28b4f1e9-1f96-463c-ad6e-184357ad647b",
+      "name": "Extract Body"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// NODO: Prepare LLM Prompt - OPTIMIZADO\n// ============================================\n\nconst pdfData = $input.first()?.json?.content?.parts[0]?.text || '';\nconst htmlData = $input.last()?.json?.compact_context || $input.first()?.json?.compact_context || '';\n\n// System prompt - SOLO CRÉDITOS HIPOTECARIOS\nconst systemPrompt = `Extrae ÚNICAMENTE tasas de CRÉDITO HIPOTECARIO de vivienda de bancos colombianos. Responde SOLO con JSON válido.\n\nREGLAS ESTRICTAS:\n- SOLO créditos hipotecarios de vivienda (EXCLUYE leasing habitacional, crédito de consumo, libranza, constructores, etc.)\n- Solo tasas E.A. (Efectivo Anual), ignora M.V. (Mes Vencido)\n- Diferencia VIS (Vivienda Interés Social) y No VIS\n- Diferencia UVR y Pesos\n- Si no hay dato, usa null\n\nIMPORTANTE: NO extraigas información de:\n- Leasing habitacional\n- Créditos para constructores\n- Créditos de consumo\n- Créditos de libranza\n- Ningún otro producto que no sea crédito hipotecario de vivienda`;\n\n// User prompt - SOLO CRÉDITOS HIPOTECARIOS\nconst userPrompt = `DATOS:\\n${pdfData}\\n${htmlData}\\n\\nDevuelve array JSON con esta estructura por cada tasa de CRÉDITO HIPOTECARIO encontrada:\\n{\\n  \"bank\": \"nombre banco\",\\n  \"credit_type\": \"Crédito hipotecario\",\\n  \"housing_type\": \"VIS|No VIS|Aplica para ambos\",\\n  \"rate_denomination\": \"UVR|Pesos\",\\n  \"rate_type\": \"Tasa efectiva anual\",\\n  \"rate\": \"X.XX%\",\\n  \"rate_range\": {\"min\":\"X%\",\"max\":\"Y%\"} | null,\\n  \"description\": \"descripción corta\",\\n  \"conditions\": [\"cond1\"] | null,\\n  \"requirements\": [\"req1\"] | null,\\n  \"min_amount\": \"$X\" | null,\\n  \"max_amount\": \"$X\" | null,\\n  \"max_term\": \"X años\" | null,\\n  \"payment_type\": \"Cuota fija|variable\" | null,\\n  \"additional_info\": {} | null\\n}\\n\\nRECUERDA: El campo credit_type SIEMPRE debe ser \"Crédito hipotecario\". NO incluyas leasing ni otros productos.\\n\\nResponde SOLO el array JSON, sin explicaciones ni markdown.`;\n\nreturn {\n  json: {\n    system_prompt: systemPrompt,\n    user_prompt: userPrompt,\n    messages: [\n      { role: \"system\", content: systemPrompt },\n      { role: \"user\", content: userPrompt }\n    ]\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1216,
+        288
+      ],
+      "id": "9f2480a5-9bda-43dc-9ba5-c8a14f21b840",
+      "name": "Prepare LLM Prompt"
+    },
+    {
+      "parameters": {
+        "formTitle": "url form",
+        "formDescription": "Form to submit the URL of the webpage you want to Scrap  and PDF you want to check",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "url",
+              "placeholder": "e.g. https://www.bancolombia.com/",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "URL del PDF (opcional)",
+              "placeholder": "e.g. https://ejemplo.com/tasas.pdf"
+            },
+            {
+              "fieldLabel": "URL del home (Para paginas con anti-bot avanzado)",
+              "placeholder": "e.g. https://banco.itau.co/personas"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.3,
+      "position": [
+        -256,
+        176
+      ],
+      "id": "c54d5b69-05d3-4246-b909-2670d5966d90",
+      "name": "On form submission",
+      "webhookId": "ecb553d8-357f-4400-904e-30b1e903047a"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// NODO: Parse OpenAI Response (Code Node)\n// Extrae y limpia el JSON de la respuesta de OpenAI\n// ============================================\n\nconst llmResponse = $input.first().json;\n\n// Extraer el texto JSON de la respuesta de OpenAI\nlet jsonText = '';\n\nif (\n  llmResponse &&\n  llmResponse.output &&\n  Array.isArray(llmResponse.output) &&\n  llmResponse.output[0].content &&\n  llmResponse.output[0].content[0].text\n) {\n  // Estructura para OpenAI\n  jsonText = llmResponse.output[0].content[0].text;\n} else {\n  throw new Error('Formato de respuesta no reconocido. Asegúrate de estar usando OpenAI.');\n}\n\n// Limpiar el texto (remover markdown si existe)\njsonText = jsonText\n  .replace(/```json\\n?/g, '')\n  .replace(/```\\n?/g, '')\n  .trim();\n\n// Parsear el JSON\nlet cleanData;\ntry {\n  cleanData = JSON.parse(jsonText);\n} catch (error) {\n  throw new Error(`Error al parsear JSON: ${error.message}\\n\\nTexto recibido:\\n${jsonText.substring(0, 500)}...`);\n}\n\n// Validar que sea un array\nif (!Array.isArray(cleanData)) {\n  throw new Error('La respuesta no es un array válido');\n}\n\n// Convertir el array de datos en items de n8n\nreturn cleanData.map(item => ({ json: item }));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1728,
+        288
+      ],
+      "id": "fdb18dc1-0619-426c-b2a3-565016a834b8",
+      "name": "Parse Response"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Obtener todos los items de entrada\nconst items = $input.all().map(i => i.json);\n\nconst domainsNode = $(\"Add Protocol To Domain\").first().json;\nconst page_url = domainsNode.finalUrl;\nconst pdf_url = domainsNode.pdf_url;\n\n// Función MEJORADA para normalizar texto para IDs consistentes\nfunction normalizeForId(text) {\n    if (!text) return '';\n    \n    return text\n        .toString()\n        .toLowerCase()  // Convertir a minúsculas\n        .normalize('NFD')  // Descomponer caracteres acentuados\n        .replace(/[\\u0300-\\u036f]/g, '')  // Eliminar marcas diacríticas (tildes)\n        .replace(/\\s+/g, '')  // Eliminar TODOS los espacios\n        .replace(/_+/g, '')  // Eliminar guiones bajos\n        .replace(/-+/g, '')  // Eliminar guiones\n        .replace(/[^a-z0-9%.]/g, '')  // Solo letras minúsculas, números, % y .\n        .trim();\n}\n\n// Función para generar ID único consistente\nfunction generateUniqueId(banco, tipoCredito, tipoVivienda, denominacion, tasa) {\n    const parts = [\n        normalizeForId(banco),\n        normalizeForId(tipoCredito),\n        normalizeForId(tipoVivienda),\n        normalizeForId(denominacion),\n        normalizeForId(tasa)\n    ].filter(p => p);  // Eliminar partes vacías\n    \n    return parts.join('__');\n}\n\n// Función para obtener fecha y hora en Colombia\nfunction obtenerFechaHoraColombia() {\n    const opciones = {\n        timeZone: \"America/Bogota\",\n        hour12: false,\n    };\n\n    const fechaHora = new Date().toLocaleString(\"sv-SE\", opciones).replace(\" \", \"T\");\n    const [fecha, hora] = fechaHora.split(\"T\");\n\n    return { fecha, hora };\n}\n\nconst { fecha, hora } = obtenerFechaHoraColombia();\n\n// 2. Procesar items y generar IDs únicos consistentes\nlet result = items.map(item => {\n    const banco = item.bank || '';\n    const tipoCredito = item.credit_type || '';\n    const tipoVivienda = item.housing_type || '';\n    const denominacion = item.rate_denomination || '';\n    const tasa = item.rate || '';\n    \n    // Generar ID único de manera determinística\n    const idUnico = generateUniqueId(banco, tipoCredito, tipoVivienda, denominacion, tasa);\n\n    return {\n        id_unico: idUnico,\n        banco: banco,\n        tipo_credito: tipoCredito,\n        tipo_vivienda: tipoVivienda,\n        denominacion: denominacion,\n        tipo_tasa: item.rate_type || '',\n        tasa: tasa,\n\n        tasa_minima: item.rate_range?.min || '',\n        tasa_maxima: item.rate_range?.max || '',\n\n        monto_minimo: item.min_amount || '',\n        monto_maximo: item.max_amount || '',\n        plazo_maximo: item.max_term || '',\n        tipo_pago: item.payment_type || '',\n\n        descripcion: item.description || '',\n\n        condiciones: Array.isArray(item.conditions)\n            ? item.conditions.join(\"; \")\n            : (item.conditions || ''),\n\n        requisitos: Array.isArray(item.requirements)\n            ? item.requirements.join(\"; \")\n            : (item.requirements || ''),\n\n        descuento_nomina: item.additional_info?.descuento_nomina || '',\n        beneficio_avaluo: item.additional_info?.beneficio_avaluo || '',\n\n        // Metadata en hora de Colombia\n        fecha_extraccion: fecha,\n        hora_extraccion: hora,\n\n        // Links de donde se extrajo la información\n        url_pagina: page_url || '',\n        url_pdf: pdf_url || ''\n    };\n});\n\n// 3. Eliminar duplicados usando el id_unico generado\nconst unique = {};\nresult.forEach(item => {\n    if (!unique[item.id_unico]) {\n        unique[item.id_unico] = item;\n    }\n});\n\n// 4. Convertir a formato n8n items\nreturn Object.values(unique).map(r => ({ json: r }));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1104,
+        480
+      ],
+      "id": "7a4e2465-8a21-435c-b90c-d016e5dcb735",
+      "name": "Prepare For SpreedSheet",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// NODO: Optimize Context for LLM - OPTIMIZADO\n// ============================================\n// Solo envía contenido relevante pre-filtrado al LLM\n\nconst bodyData = $input.first().json;\n\n// Datos ya optimizados del nodo anterior\nconst pageTitle = bodyData.title || '';\nconst headings = bodyData.headings || [];\nconst tables = bodyData.tables || '';\nconst relevantContent = bodyData.relevant_content || '';\nconst stats = bodyData.stats || {};\n\n// ============================================\n// EXTRAER NOMBRE DEL BANCO\n// ============================================\nconst bankName = pageTitle.includes('-')\n  ? pageTitle.split('-').pop().trim()\n  : pageTitle.includes('|')\n    ? pageTitle.split('|').pop().trim()\n    : pageTitle;\n\n// ============================================\n// CONSTRUIR CONTEXTO COMPACTO\n// ============================================\nconst headingsText = headings\n  .filter(h => h.level <= 2)\n  .map(h => `${'#'.repeat(h.level)} ${h.text}`)\n  .join('\\\\n');\n\n// Solo incluir secciones que tengan contenido\nconst sections = [];\n\nsections.push(`# BANCO: ${bankName}`);\n\nif (headingsText) {\n  sections.push(`## Estructura\\\\n${headingsText}`);\n}\n\nif (tables && tables.trim()) {\n  sections.push(`## Tablas de Tasas\\\\n${tables}`);\n}\n\nif (relevantContent && relevantContent.trim()) {\n  // Limitar contenido relevante a ~8000 caracteres max\n  const truncatedContent = relevantContent.length > 8000\n    ? relevantContent.substring(0, 8000) + '...'\n    : relevantContent;\n  sections.push(`## Información Relevante\\\\n${truncatedContent}`);\n}\n\nconst compactContext = sections.join('\\\\n\\\\n');\n\n// ============================================\n// CALCULAR ESTADÍSTICAS\n// ============================================\nconst originalEstimate = (relevantContent.length + tables.length) || 1;\nconst optimizedSize = compactContext.length;\n\nreturn {\n  json: {\n    metadata: {\n      extraction_date: new Date().toISOString(),\n      page_title: pageTitle,\n      bank_name: bankName,\n      optimized: true\n    },\n    compact_context: compactContext,\n    optimization_stats: {\n      tables_found: stats.tables_found || 0,\n      paragraphs_found: stats.paragraphs_found || 0,\n      final_chars: optimizedSize,\n      estimated_tokens: Math.ceil(optimizedSize / 4)\n    }\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1008,
+        160
+      ],
+      "id": "ca427b0d-6fe9-4402-b79c-21fadc0136b2",
+      "name": "Optimize Context for LLM"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1yUR0Tow3yrbSemyzmsqDY4VoF113wrxfCwVDhSTOsoM",
+          "mode": "list",
+          "cachedResultName": "BankScrappedData",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1yUR0Tow3yrbSemyzmsqDY4VoF113wrxfCwVDhSTOsoM/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Hoja 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1yUR0Tow3yrbSemyzmsqDY4VoF113wrxfCwVDhSTOsoM/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {
+            "id_unico": "={{ $json.id_unico }}",
+            "banco": "={{ $json.banco }}",
+            "tipo_credito": "={{ $json.tipo_credito }}",
+            "tipo_vivienda": "={{ $json.tipo_vivienda }}",
+            "denominacion": "={{ $json.denominacion }}",
+            "tipo_tasa": "={{ $json.tipo_tasa }}",
+            "tasa": "={{ $json.tasa }}",
+            "tasa_minima": "={{ $json.tasa_minima }}",
+            "tasa_maxima": "={{ $json.tasa_maxima }}",
+            "monto_minimo": "={{ $json.monto_minimo }}",
+            "monto_maximo": "={{ $json.monto_maximo }}",
+            "plazo_maximo": "={{ $json.plazo_maximo }}",
+            "tipo_pago": "={{ $json.tipo_pago }}",
+            "descripcion": "={{ $json.descripcion }}",
+            "condiciones": "={{ $json.condiciones }}",
+            "requisitos": "={{ $json.requisitos }}",
+            "descuento_nomina": "={{ $json.descuento_nomina }}",
+            "beneficio_avaluo": "={{ $json.beneficio_avaluo }}",
+            "fecha_extraccion": "={{ $json.fecha_extraccion }}"
+          },
+          "matchingColumns": [
+            "id_unico"
+          ],
+          "schema": [
+            {
+              "id": "id_unico",
+              "displayName": "id_unico",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "banco",
+              "displayName": "banco",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tipo_credito",
+              "displayName": "tipo_credito",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tipo_vivienda",
+              "displayName": "tipo_vivienda",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "denominacion",
+              "displayName": "denominacion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tipo_tasa",
+              "displayName": "tipo_tasa",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tasa",
+              "displayName": "tasa",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tasa_minima",
+              "displayName": "tasa_minima",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tasa_maxima",
+              "displayName": "tasa_maxima",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "monto_minimo",
+              "displayName": "monto_minimo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "monto_maximo",
+              "displayName": "monto_maximo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "plazo_maximo",
+              "displayName": "plazo_maximo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tipo_pago",
+              "displayName": "tipo_pago",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "descripcion",
+              "displayName": "descripcion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "condiciones",
+              "displayName": "condiciones",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "requisitos",
+              "displayName": "requisitos",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "descuento_nomina",
+              "displayName": "descuento_nomina",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "beneficio_avaluo",
+              "displayName": "beneficio_avaluo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "fecha_extraccion",
+              "displayName": "fecha_extraccion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "hora_extraccion",
+              "displayName": "hora_extraccion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "url_pagina",
+              "displayName": "url_pagina",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "url_pdf",
+              "displayName": "url_pdf",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1440,
+        512
+      ],
+      "id": "03db0b54-be47-467e-ac6f-101da62aeda3",
+      "name": "Append or update row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "rWJE0ntmYwzYmIeB",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "81a58859-1579-423c-bdeb-7c41ae086195",
+              "leftValue": "={{ $json.has_pdf }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "81e47976-62d9-4192-a460-4ec569af197c",
+              "leftValue": "={{ $json.pdf_url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "ignoreCase": false
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        448,
+        -96
+      ],
+      "id": "34792700-66c2-4375-ad88-f47940852c89",
+      "name": "Process PDF?"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json[\"finalUrl\"] }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\n  \"User-Agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\",\n  \"Accept\": \"text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8\",\n  \"Accept-Language\": \"es-ES,es;q=0.9,en;q=0.8\",\n  \"Accept-Encoding\": \"gzip, deflate, br\",\n  \"Connection\": \"keep-alive\",\n  \"Upgrade-Insecure-Requests\": \"1\",\n  \"Sec-Fetch-Dest\": \"document\",\n  \"Sec-Fetch-Mode\": \"navigate\",\n  \"Sec-Fetch-Site\": \"none\",\n  \"Cache-Control\": \"max-age=0\"\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        336,
+        176
+      ],
+      "id": "ff8b7347-747f-4b41-9655-979e5dc64bf0",
+      "name": "Extract Page Structure",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.pdf_url }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\n  \"User-Agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\",\n  \"Accept\": \"text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8\",\n  \"Accept-Language\": \"es-ES,es;q=0.9,en;q=0.8\",\n  \"Accept-Encoding\": \"gzip, deflate, br\",\n  \"Connection\": \"keep-alive\",\n  \"Upgrade-Insecure-Requests\": \"1\",\n  \"Sec-Fetch-Dest\": \"document\",\n  \"Sec-Fetch-Mode\": \"navigate\",\n  \"Sec-Fetch-Site\": \"none\",\n  \"Cache-Control\": \"max-age=0\"\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        720,
+        -112
+      ],
+      "id": "206f4757-2db8-448f-826a-8b20d28a04a5",
+      "name": "Extract PDF File",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "document",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "text": "Extrae SOLO información de tasas de crédito hipotecario/vivienda de este PDF bancario.\n\nEXTRAE:\n- Tasas E.A. (Efectivo Anual) para créditos hipotecarios\n- Diferencia entre VIS y No VIS\n- Diferencia entre UVR y Pesos\n- Plazos, montos, condiciones\n\nIGNORA:\n- Información legal/regulatoria\n- Otros productos (consumo, tarjetas, libranzas)\n- Texto repetido o decorativo\n\nFORMATO: Devuelve tablas en Markdown. Ejemplo:\n| Tipo | Vivienda | Denominación | Tasa E.A. |\n|------|----------|--------------|----------|\n| Hipotecario | VIS | UVR | 6.50% |\n\nSolo tablas relevantes, sin explicaciones.",
+        "inputType": "binary",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        -96
+      ],
+      "id": "cc3c2a3c-9c9e-4e95-a682-e349f9cfd834",
+      "name": "Analyze document",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "bntGnSACL2Hk8ZhX",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "={{ $json.user_prompt }}"
+            },
+            {
+              "role": "system",
+              "content": "={{ $json.system_prompt }}"
+            }
+          ]
+        },
+        "simplify": "={{ true }}",
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        1424,
+        288
+      ],
+      "id": "70dffae4-6508-4161-b420-5c627b1efb39",
+      "name": "GPT-4.1",
+      "credentials": {
+        "openAiApi": {
+          "id": "f53Aggp0OmXdCukb",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1200,
+        96
+      ],
+      "id": "431dd7fd-1f3d-4871-9f19-866f77f0a256",
+      "name": "Merge Data"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://production-sfo.browserless.io/function?token=2TZHWwrvx4hGUi82c1305008131d752f218c48a0442c59c8f&stealth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/javascript"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/javascript",
+        "body": "=export default async function ({ page }) {\n  // 1. Configurar un User-Agent de una persona real\n  await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');\n\n  // 2. Ir a la página principal para \"calentar\" la sesión y aceptar cookies/firewalls\n  try {\n    await page.goto('{{ $('Add Protocol To Domain').item.json.target_url }}', { \n      waitUntil: 'networkidle2',\n      timeout: 60000 \n    });\n    \n    // Espera aleatoria para simular humano\n    await new Promise(r => setTimeout(r, 4000));\n\n    // 3. Intentar descargar el PDF usando el contexto de la página\n    const pdfUrl = '{{ $('Add Protocol To Domain').item.json.pdf_url }}';\n    \n    const result = await page.evaluate(async (url) => {\n      const response = await fetch(url);\n      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);\n      const blob = await response.blob();\n      return new Promise((resolve) => {\n        const reader = new FileReader();\n        reader.onloadend = () => resolve(reader.result.split(',')[1]);\n        reader.readAsDataURL(blob);\n      });\n    }, pdfUrl);\n\n    return {\n      data: { status: 'success', pdf_base64: result },\n      type: 'application/json'\n    };\n\n  } catch (error) {\n    return {\n      data: { status: 'error', message: error.message },\n      type: 'application/json'\n    };\n  }\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1200,
+        -320
+      ],
+      "id": "0d317f1f-316b-4467-bd57-3425c81ae0da",
+      "name": "Browserless Anti-Bot"
+    },
+    {
+      "parameters": {
+        "jsCode": "const pdfBase64 = $input.first().json.data.pdf_base64;\n\nreturn [\n  {\n    binary: {\n      data: {\n        data: Buffer.from(pdfBase64, 'base64'),\n        mimeType: 'application/pdf',\n        fileName: 'itau_tasas.pdf'\n      }\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1408,
+        -320
+      ],
+      "id": "6cf5be70-422f-4dad-81f4-e593fd07a806",
+      "name": "Convert to binary"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b2db67cb-0250-4a7a-8c9e-233115777cb8",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        976,
+        -112
+      ],
+      "id": "21d1453b-9f24-4b75-b395-6f23d250a3d0",
+      "name": "Blocked?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b2db67cb-0250-4a7a-8c9e-233115777cb8",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "notExists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        512,
+        176
+      ],
+      "id": "10360609-a0c3-4710-becb-a521f4da8de3",
+      "name": "Blocked?1"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.scraperapi.com/?api_key=2cad0b340b1da2b4dc6796b8e68b5c64&url={{ $('Add Protocol To Domain').item.json.finalUrl }}&render=true&country_code=co",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\n  \"User-Agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\",\n  \"Accept\": \"text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8\",\n  \"Accept-Language\": \"es-ES,es;q=0.9,en;q=0.8\",\n  \"Accept-Encoding\": \"gzip, deflate, br\",\n  \"Connection\": \"keep-alive\",\n  \"Upgrade-Insecure-Requests\": \"1\",\n  \"Sec-Fetch-Dest\": \"document\",\n  \"Sec-Fetch-Mode\": \"navigate\",\n  \"Sec-Fetch-Site\": \"none\",\n  \"Cache-Control\": \"max-age=0\"\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        672,
+        304
+      ],
+      "id": "3be020e1-1623-4848-b926-05915c089046",
+      "name": "ScraperAPI"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Set Domain": {
+      "main": [
+        [
+          {
+            "node": "Add Protocol To Domain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Protocol To Domain": {
+      "main": [
+        [
+          {
+            "node": "Process PDF?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract Page Structure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Body": {
+      "main": [
+        [
+          {
+            "node": "Optimize Context for LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Set Domain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare LLM Prompt": {
+      "main": [
+        [
+          {
+            "node": "GPT-4.1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Response": {
+      "main": [
+        [
+          {
+            "node": "Prepare For SpreedSheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare For SpreedSheet": {
+      "main": [
+        [
+          {
+            "node": "Append or update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Optimize Context for LLM": {
+      "main": [
+        [
+          {
+            "node": "Merge Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Process PDF?": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Page Structure": {
+      "main": [
+        [
+          {
+            "node": "Blocked?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF File": {
+      "main": [
+        [
+          {
+            "node": "Blocked?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze document": {
+      "main": [
+        [
+          {
+            "node": "Merge Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GPT-4.1": {
+      "main": [
+        [
+          {
+            "node": "Parse Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Data": {
+      "main": [
+        [
+          {
+            "node": "Prepare LLM Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append or update row in sheet": {
+      "main": [
+        []
+      ]
+    },
+    "Browserless Anti-Bot": {
+      "main": [
+        [
+          {
+            "node": "Convert to binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to binary": {
+      "main": [
+        [
+          {
+            "node": "Analyze document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Blocked?": {
+      "main": [
+        [
+          {
+            "node": "Browserless Anti-Bot",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Analyze document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Blocked?1": {
+      "main": [
+        [
+          {
+            "node": "Extract Body",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ScraperAPI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ScraperAPI": {
+      "main": [
+        [
+          {
+            "node": "Extract Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "c96a57fe-2168-4d55-8baa-3a60aaa495cf",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1618e2f459f31c8fc5b2c8230db6ae5636ce6f0cb05a8124de87b1bf1e2d6588"
+  },
+  "id": "0TP2ZS49dTix90SW",
+  "tags": []
+}
