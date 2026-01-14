@@ -1,15 +1,24 @@
-# FinanceBro 💰
+# FinanceBro - Frontend Web 💰
 
-Una plataforma web moderna para comparar productos financieros en Colombia. Compara créditos hipotecarios, personales, tarjetas de crédito, seguros e inversiones de manera transparente y gratuita.
+> **📌 Nota Importante**: Este es el componente de **frontend** del proyecto FinanceBro. Para ver la documentación completa del proyecto (incluyendo el sistema de automatización con n8n y el backend futuro), consulta el [README principal](../README.md).
 
-![FinanceBro](https://img.shields.io/badge/version-1.0.0-blue.svg)
+Una aplicación web moderna construida con React y TypeScript para comparar productos financieros en Colombia.
+
 ![React](https://img.shields.io/badge/React-18.3.1-61DAFB?logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8.3-3178C6?logo=typescript)
 ![Vite](https://img.shields.io/badge/Vite-5.4.19-646CFF?logo=vite)
+![Tailwind](https://img.shields.io/badge/Tailwind-3.4.17-38B2AC?logo=tailwind-css)
 
 ## 📋 Descripción
 
-FinanceBro es una aplicación web que permite a los usuarios comparar diferentes productos financieros de los principales bancos colombianos. La plataforma ofrece información transparente y actualizada sobre tasas de interés, costos totales, comisiones y requisitos para ayudar a los usuarios a tomar decisiones financieras informadas.
+Este es el **frontend web** de FinanceBro, una aplicación React que permite a los usuarios comparar diferentes productos financieros de los principales bancos colombianos. La plataforma ofrece información transparente y actualizada sobre tasas de interés, costos totales, comisiones y requisitos para ayudar a los usuarios a tomar decisiones financieras informadas.
+
+### 🔗 Relación con el Proyecto Global
+
+- **Backend/Datos**: Los datos financieros son extraídos y procesados por workflows de [n8n](../n8n/README.md)
+- **Almacenamiento**: Datos guardados en PostgreSQL (n8n cloud) y [Google Sheets](https://docs.google.com/spreadsheets/d/1yUR0Tow3yrbSemyzmsqDY4VoF113wrxfCwVDhSTOsoM/edit?usp=sharing)
+- **Frontend** (este proyecto): Presenta los datos de forma visual y permite a los usuarios comparar productos
+- **Backend API (Futuro)**: Se desarrollará con NestJS + PostgreSQL + Redis para servir datos al frontend
 
 ### 🎯 Características Principales
 
@@ -59,7 +68,7 @@ FinanceBro es una aplicación web que permite a los usuarios comparar diferentes
 ## 📁 Estructura del Proyecto
 
 ```
-finance-hub-main/
+finance-bro-web/ (frontend)
 ├── public/
 │   ├── favicon.ico
 │   ├── placeholder.svg
@@ -105,10 +114,9 @@ finance-hub-main/
 
 ## 📦 Instalación
 
-1. Clona el repositorio:
+1. Navega al directorio del frontend:
 ```bash
-git clone <URL_DEL_REPOSITORIO>
-cd finance-hub-main
+cd finance-bro-web
 ```
 
 2. Instala las dependencias:
@@ -216,7 +224,21 @@ El proyecto genera una carpeta `dist/` con la build de producción que puede des
 
 ## 📊 Datos
 
-Actualmente, los datos de los bancos están hardcodeados en `src/components/BankComparison.tsx`. Para conectar con una API real:
+### Estado Actual
+
+Actualmente, los datos de los bancos están **hardcodeados** en `src/components/BankComparison.tsx`. Esto es temporal mientras se desarrolla el backend API.
+
+### Flujo de Datos (Futuro)
+
+Cuando el backend NestJS esté disponible, el flujo será:
+
+```
+n8n (Scraping) → PostgreSQL → Backend API (NestJS + Redis Cache) → Frontend (React)
+```
+
+### Integración con API Real (Próximamente)
+
+Para conectar con la API del backend:
 
 1. Crea un servicio en `src/services/api.ts`
 2. Usa TanStack Query para el fetching de datos
@@ -231,6 +253,12 @@ const { data: banks } = useQuery({
   queryFn: fetchBanks,
 });
 ```
+
+### Enlaces Relacionados
+
+- 📊 [Google Sheets Database](https://docs.google.com/spreadsheets/d/1yUR0Tow3yrbSemyzmsqDY4VoF113wrxfCwVDhSTOsoM/edit?usp=sharing) - Base de datos temporal
+- 🤖 [Sistema n8n](../n8n/README.md) - Documentación de workflows de scraping
+- 📖 [README Principal](../README.md) - Arquitectura completa del proyecto
 
 ## 🤝 Contribución
 
