@@ -1,303 +1,353 @@
 # Contexto del Proyecto FinanceBro
 
-## Descripción General
+## Descripción
 
-**FinanceBro** es una plataforma completa de comparación de productos financieros en Colombia que combina:
-- Automatización de web scraping con **n8n**
-- Almacenamiento dual de datos (**PostgreSQL** + **Google Sheets**)
-- Frontend moderno con **React** + **TypeScript**
-- Backend futuro con **NestJS** + **PostgreSQL** + **Redis**
+**FinanceBro** es una plataforma de comparación de productos financieros en Colombia con arquitectura de microservicios.
 
-## Arquitectura del Proyecto
+**Stack**: React + TypeScript + NestJS + PostgreSQL + Redis + n8n
 
-### Componentes Actuales
+**Objetivo**: Democratizar el acceso a información financiera transparente y actualizada en tiempo real.
 
-1. **n8n Workflows (Scraping & Automatización)**
-   - Ubicación: `/n8n`
-   - Función: Extrae datos financieros de sitios web de bancos
-   - Almacena en: PostgreSQL (n8n cloud) + Google Sheets
-   - Workflow principal: `TextScrapperTool.json` (22+ nodos)
+---
 
-2. **Google Sheets Database**
-   - URL: https://docs.google.com/spreadsheets/d/1yUR0Tow3yrbSemyzmsqDY4VoF113wrxfCwVDhSTOsoM/edit?usp=sharing
-   - Función: Almacenamiento secundario y visualización de datos
-   - Acceso: Público (solo lectura)
+## Arquitectura de Microservicios
 
-3. **Frontend Web (React)**
-   - Ubicación: `/finance-hub-main`
-   - Stack: React 18.3.1 + TypeScript 5.8.3 + Vite 5.4.19
-   - UI: Tailwind CSS + shadcn/ui + Radix UI + Framer Motion
-   - Estado actual: Datos hardcoded (sin integración con API real)
+### Justificación
 
-### Componentes Futuros (En Desarrollo)
+- **Escalabilidad selectiva**: Escalar solo los componentes que lo requieran
+- **Despliegue independiente**: Sin afectar otros servicios
+- **Aislamiento de fallos**: Errores contenidos y no propagados
+- **Especialización tecnológica**: Stack homogéneo NestJS + PostgreSQL
 
-4. **Backend API (NestJS)** 🔜
-   - Stack planificado:
-     - **NestJS**: Framework backend
-     - **PostgreSQL**: Base de datos principal
-     - **Redis**: Sistema de cache para performance
-     - **TypeORM**: ORM para gestión de datos
-     - **JWT**: Autenticación
-     - **Swagger**: Documentación de API
+### Microservicios
 
-   - Endpoints planificados:
-     ```
-     GET /api/v1/creditos/hipotecarios
-     GET /api/v1/creditos/hipotecarios/:id
-     GET /api/v1/creditos/personales
-     POST /api/v1/creditos/comparar
-     GET /api/v1/bancos
-     GET /api/v1/bancos/:id
-     ```
+#### 1. MS Usuarios (Authentication & Profile)
+**Responsabilidades**:
+- Autenticación JWT y gestión de sesiones
+- Perfiles financieros (ingresos, capacidad de endeudamiento)
+- Preferencias de notificación
+- Productos favoritos e historial de simulaciones
+
+#### 2. MS Productos Crediticios (Core Business)
+**Responsabilidades**:
+- Catálogo de productos financieros actualizado
+- Ingesta de datos desde n8n (scraping)
+- Motor de comparación y rankings personalizados
+- Simulador de créditos
+- Detección de cambios en tasas (eventos al message broker)
+
+#### 3. MS Notificaciones (Communication)
+**Responsabilidades**:
+- Email transaccional y marketing
+- Notificaciones push
+- Alertas de cambio de tasas
+- Templates de comunicación
+- Auditoría de notificaciones enviadas
+
+#### 4. MS Configuración (Regulatory Data)
+**Responsabilidades**:
+- Valor UVR (actualización diaria)
+- SMMLV (clasificación VIS/No VIS)
+- Tasa de usura (límite legal)
+- Feature flags
+- API con cache de alto rendimiento
+
+### Comunicación entre Servicios
+
+- **Síncrona (HTTP/REST)**: Consultas de productos, valores UVR (API Gateway + circuit breakers)
+- **Asíncrona (Redis Pub/Sub o RabbitMQ)**: Eventos de cambio de tasas, notificaciones
+
+---
+
+## Modelo de Datos - MS Productos Crediticios
+
+### Catálogos (Datos Maestros)
+
+**entidades_financieras**
+- `id`, `nombre`, `nombre_normalizado` (para URLs), `logo_url`, `sitio_web`, `activo`
+
+**tipos_credito**
+- `id`, `codigo` (hipotecario, consumo, vehiculo), `nombre`, `activo`
+
+**tipos_vivienda**
+- `id`, `codigo` (vis, no_vis, vip, aplica_ambos), `valor_maximo_smmlv`
+
+**denominaciones**
+- `id`, `codigo` (pesos, uvr)
+
+**tipos_tasa**
+- `id`, `codigo` (efectiva_anual, nominal_mensual)
+
+**tipos_pago**
+- `id`, `codigo` (cuota_fija, cuota_variable)
+
+### Productos
+
+**productos_credito**
+- `id`, `id_unico_scraping` (idempotencia N8N), `entidad_id`, `tipo_credito_id`
+- `tipo_vivienda_id`, `denominacion_id`, `tipo_tasa_id`, `tipo_pago_id`
+- `descripcion`, `url_pagina`, `url_pdf`, `activo`
+
+### Tasas
+
+**tasas_vigentes**
+- `producto_id` (UNIQUE), `tasa_valor`, `tasa_texto_original`
+- `tasa_minima`, `tasa_maxima`, `es_rango`, `spread_uvr`, `fecha_vigencia`
+
+**tasas_historicas**
+- `producto_id`, `tasa_valor`, `fecha_extraccion`, `hora_extraccion`
+- Histórico completo de cambios de tasas
+
+### Condiciones
+
+**montos_productos**
+- `producto_id`, `monto_minimo`, `monto_maximo`
+- `plazo_minimo_meses`, `plazo_maximo_meses`
+- `porcentaje_financiacion_min`, `porcentaje_financiacion_max`
+
+**condiciones_productos**
+- `producto_id`, `condicion`, `orden`
+
+**requisitos_productos**
+- `producto_id`, `requisito`, `tipo_requisito`, `es_obligatorio`, `orden`
+
+**beneficios_productos**
+- `producto_id`, `tipo_beneficio`, `descripcion`, `valor`, `aplica_condicion`
+- Ejemplo: `descuento_nomina`, `+200 pbs`, `Con Cuenta de Nómina`
+
+### Auditoría Scraping
+
+**ejecuciones_scraping**
+- `entidad_id`, `fecha_inicio`, `fecha_fin`, `estado`
+- `productos_encontrados`, `productos_actualizados`, `productos_nuevos`
+- `errores`, `metadata` (jsonb)
+
+**cambios_tasas**
+- `producto_id`, `tasa_anterior`, `tasa_nueva`, `diferencia`
+- `fecha_cambio`, `evento_publicado` (flag para message broker)
+
+### Valores Regulatorios
+
+**valor_uvr**
+- `fecha` (UNIQUE), `valor`
+
+**valor_smmlv**
+- `anio` (UNIQUE), `valor`
+
+### Analytics (Interno del Microservicio)
+
+**redirecciones**
+- `usuario_id` (externo MS Usuarios), `producto_id`, `session_id`
+- `url_destino`, `user_agent`, `created_at`
+
+**simulaciones**
+- `usuario_id`, `session_id`, `producto_id`
+- `monto_solicitado`, `plazo_meses`, `tasa_aplicada`
+- `cuota_mensual_calculada`, `total_intereses`, `costo_total_credito`
+
+---
+
+## Diseño y Branding
+
+### Paleta de Colores
+
+**Blues (Primary)**
+- `#0466C8` - Primary blue
+- `#0353A4` - Primary hover
+- `#023E7D` - Dark blue
+- `#002855` - Darker blue (headers)
+- `#001845` - Navy (navegación)
+- `#001233` - Darkest (backgrounds)
+
+**Grays (Neutral)**
+- `#33415C` - Dark gray (texto principal)
+- `#5C677D` - Medium gray (texto secundario)
+- `#7D8597` - Gray (subtítulos)
+- `#979DAC` - Light gray (bordes)
+
+**Dark Accents**
+- `#000814` - Near black
+- `#001D3D` - Dark navy
+- `#003566` - Deep blue (CTAs secundarios)
+
+**Yellow (Accent)**
+- `#FFC300` - Gold (CTAs, highlights)
+- `#FFD60A` - Primary accent yellow (badges)
+
+**Uso**:
+- Botones primarios: `#0466C8` → `#0353A4` (hover)
+- Botones acción: `#FFC300` → `#FFD60A` (hover)
+- Acentos: `#FFC300` para tasas y descuentos
+
+---
+
+## Stack Tecnológico
+
+### Frontend
+- React 18.3.1 + TypeScript 5.8.3 + Vite 5.4.19
+- Tailwind CSS 3.4.17 + shadcn/ui + Radix UI + Framer Motion
+- TanStack Query + React Hook Form + Zod
+
+### Backend (En Desarrollo)
+- NestJS + PostgreSQL + Redis + TypeORM
+- JWT + Swagger
+
+### Automatización
+- n8n Cloud + Google Sheets API + Node.js 18+
+
+---
 
 ## Flujo de Datos
 
-### Flujo Actual
-```
-Bancos (Web)
-  → n8n Scraping
-    → PostgreSQL (n8n cloud)
-      → Google Sheets
-        → Frontend (datos hardcoded)
-```
-
-### Flujo Futuro (Con Backend NestJS)
-```
-Bancos (Web)
-  → n8n Scraping
-    → PostgreSQL (NestJS)
-      → Backend API (NestJS)
-        → Redis Cache
-          → Frontend (React)
-```
-
-## Almacenamiento de Datos
-
 ### Actual
-- **PostgreSQL (n8n cloud)**: Base de datos principal integrada en n8n
-- **Google Sheets**: Base de datos secundaria para visualización
-  - Link: https://docs.google.com/spreadsheets/d/1yUR0Tow3yrbSemyzmsqDY4VoF113wrxfCwVDhSTOsoM/edit?usp=sharing
+```
+Bancos → n8n Scraping → Google Sheets
+
+Frontend (hardcoded)
+```
 
 ### Futuro
-- **PostgreSQL (NestJS)**: Base de datos principal independiente
-- **Redis**: Cache para optimizar performance
-- n8n escribirá directamente en PostgreSQL del backend NestJS
+```
+Bancos → n8n → PostgreSQL (NestJS) → Backend API → Redis Cache → Frontend
+```
+
+---
 
 ## Estructura del Repositorio
 
 ```
 Proyecto-FinanceBro/
-└── finance-bro-web/
-    ├── .claude/
-    │   ├── settings.local.json     # Configuración de Claude Code
-    │   └── claude.md               # Este archivo (contexto del proyecto)
-    │
-    ├── n8n/                        # Sistema de automatización
-    │   ├── sync-workflow.js        # Script para sincronizar workflows
-    │   ├── TextScrapperTool.json   # Workflow principal de scraping
-    │   ├── backups/                # Backups automáticos (no versionado)
-    │   ├── .env                    # Variables de entorno (no versionado)
-    │   ├── package.json
-    │   └── README.md
-    │
-    ├── finance-bro-web/            # Frontend React
-    │   ├── src/
-    │   │   ├── components/         # Componentes React
-    │   │   │   ├── ui/             # Componentes shadcn/ui (40+)
-    │   │   │   ├── BankCard.tsx
-    │   │   │   ├── BankComparison.tsx
-    │   │   │   ├── CreditFilters.tsx
-    │   │   │   └── ...
-    │   │   ├── pages/
-    │   │   │   ├── Index.tsx
-    │   │   │   └── NotFound.tsx
-    │   │   ├── hooks/
-    │   │   ├── lib/
-    │   │   ├── App.tsx
-    │   │   └── main.tsx
-    │   ├── public/
-    │   ├── components.json         # Config shadcn/ui
-    │   ├── tailwind.config.ts
-    │   ├── package.json
-    │   └── README.md
-    │
-    ├── .git/                       # Repositorio Git
-    ├── .gitignore
-    └── README.md                   # Documentación principal
+├── .claude/
+│   ├── settings.local.json
+│   └── claude.md                  # Este archivo
+├── n8n/
+│   ├── TextScrapperTool.json      # Workflow principal (22+ nodos)
+│   ├── sync-workflow.js
+│   ├── backups/
+│   └── .env
+├── finance-bro-web/               # Frontend React
+│   ├── src/
+│   │   ├── components/ui/         # shadcn/ui (40+)
+│   │   ├── pages/
+│   │   ├── hooks/
+│   │   └── lib/
+│   ├── components.json
+│   └── tailwind.config.ts
+└── README.md
 ```
 
-## Tecnologías Utilizadas
-
-### Frontend (Actual)
-- **React 18.3.1**: Librería UI
-- **TypeScript 5.8.3**: Tipado estático
-- **Vite 5.4.19**: Build tool
-- **Tailwind CSS 3.4.17**: Framework CSS
-- **shadcn/ui**: Componentes UI
-- **Framer Motion**: Animaciones
-- **TanStack Query**: Estado del servidor
-- **React Hook Form**: Formularios
-- **Zod**: Validación
-
-### Backend Automatización (Actual)
-- **n8n Cloud**: Plataforma de workflows
-- **PostgreSQL**: Base de datos (n8n cloud)
-- **Google Sheets API**: Almacenamiento secundario
-- **Node.js 18+**: Runtime
-
-### Backend API (Futuro - En Desarrollo)
-- **NestJS**: Framework backend
-- **PostgreSQL**: Base de datos principal
-- **Redis**: Sistema de cache
-- **TypeORM**: ORM
-- **JWT**: Autenticación
-- **Swagger**: Documentación API
+---
 
 ## Variables de Entorno
 
 ### n8n
 ```env
-N8N_API_KEY=tu_api_key_de_n8n
+N8N_API_KEY=tu_api_key
 N8N_HOST=https://tu-instancia.n8n.cloud
-```
-
-### Frontend (Futuro - con API)
-```env
-VITE_API_URL=https://api.financebro.com
-VITE_API_KEY=tu_api_key
 ```
 
 ### Backend NestJS (Futuro)
 ```env
-# Database
 DATABASE_HOST=localhost
 DATABASE_PORT=5432
 DATABASE_USER=financebro
 DATABASE_PASSWORD=password
 DATABASE_NAME=financebro_db
 
-# Redis
 REDIS_HOST=localhost
 REDIS_PORT=6379
 
-# JWT
 JWT_SECRET=secret
 JWT_EXPIRATION=7d
 ```
 
+---
+
 ## Productos Financieros
 
 ### Disponibles
-- ✅ **Créditos Hipotecarios**: Comparación de 50+ bancos colombianos
+✅ **Créditos Hipotecarios**: 50+ bancos colombianos
 
-### En Desarrollo (Futuro)
-- 🔜 **Créditos Personales**
-- 🔜 **Créditos Automotriz**
-- 🔜 **Créditos Empresariales**
-- 🔜 **Seguros** (Vida, Auto, Hogar, Gastos Médicos)
-- 🔜 **Tarjetas de Crédito** (Sin anualidad, Cashback, Millas)
-- 🔜 **Inversiones** (CDT, Fondos, Bonos, Acciones)
+### Roadmap
+🔜 Créditos Personales, Automotriz, Empresariales
+🔜 Seguros (Vida, Auto, Hogar)
+🔜 Tarjetas de Crédito (Sin anualidad, Cashback, Millas)
+🔜 Inversiones (CDT, Fondos, Bonos, Acciones)
 
-## Modelo de Datos
+---
 
-### Crédito Hipotecario
-```typescript
-interface CreditoHipotecario {
-  id: string;
-  banco: string;
-  logo: string;
-  tasaInteres: number;        // Porcentaje anual
-  mensualidad: number;        // COP
-  costoTotal: number;         // COP
-  plazo: number;              // Años
-  monto: number;              // COP
-  comisiones: {
-    apertura: number;
-    estudio: number;
-  };
-  requisitos: string[];
-  tiempoProcesamiento: string;
-  calificacion: number;       // 1-5 estrellas
-  caracteristicas: string[];
-  activo: boolean;
-  fechaActualizacion: Date;
-}
-```
+## Roadmap 2026
 
-## Roadmap
-
-### Q1 2026
+**Q1 2026**
 - [x] Comparador de créditos hipotecarios
 - [x] Sistema n8n con scraping automatizado
 - [x] Almacenamiento dual (PostgreSQL + Google Sheets)
-- [ ] **Backend API con NestJS + PostgreSQL + Redis**
+- [ ] Backend API con NestJS + PostgreSQL + Redis
 - [ ] Integración frontend con API real
-- [ ] Tests unitarios y E2E
 
-### Q2 2026
+**Q2 2026**
 - [ ] Migración completa a backend NestJS
 - [ ] Sistema de cache con Redis
 - [ ] Créditos personales y automotriz
-- [ ] Dashboard de administración
 
-### Q3 2026
-- [ ] Tarjetas de crédito
-- [ ] Seguros
+**Q3 2026**
+- [ ] Tarjetas de crédito y seguros
 - [ ] Sistema de recomendaciones con IA
 - [ ] Autenticación de usuarios
 
-### Q4 2026
-- [ ] Inversiones
+**Q4 2026**
+- [ ] Inversiones (CDT, Fondos, Acciones)
 - [ ] App móvil (React Native)
-- [ ] Análisis de perfil financiero
-- [ ] Marketplace de productos
+
+---
 
 ## Comandos Útiles
-
-### n8n
-```bash
-cd n8n
-npm install
-npm run sync              # Sincronizar workflow a n8n cloud
-```
 
 ### Frontend
 ```bash
 cd finance-bro-web
-npm install
-npm run dev               # Servidor de desarrollo
-npm run build             # Build de producción
-npm run preview           # Preview del build
+npm run dev               # Desarrollo
+npm run build             # Producción
 npm run lint              # Linter
+```
+
+### n8n
+```bash
+cd n8n
+npm run sync              # Sincronizar workflow a cloud
 ```
 
 ### Backend (Futuro)
 ```bash
 cd backend
-npm install
 npm run start:dev         # Desarrollo
-npm run start:prod        # Producción
 npm run test              # Tests
-npm run migration:run     # Ejecutar migraciones
+npm run migration:run     # Migraciones
 ```
+
+---
 
 ## Enlaces Importantes
 
 - **Google Sheets Database**: https://docs.google.com/spreadsheets/d/1yUR0Tow3yrbSemyzmsqDY4VoF113wrxfCwVDhSTOsoM/edit?usp=sharing
-- **n8n API Docs**: https://docs.n8n.io/api/
-- **React Docs**: https://react.dev/
+- **n8n Docs**: https://docs.n8n.io/api/
 - **NestJS Docs**: https://docs.nestjs.com/
 
-## Notas Importantes
-
-1. **Datos Actuales**: El frontend usa datos hardcoded. La integración con API real está pendiente.
-2. **n8n Storage**: n8n guarda datos en PostgreSQL (n8n cloud) y Google Sheets simultáneamente.
-3. **Backend en Desarrollo**: El backend con NestJS + PostgreSQL + Redis está planificado para Q1 2026.
-4. **Migración Futura**: Cuando el backend NestJS esté listo, n8n escribirá directamente en la nueva base de datos.
-5. **Redis**: Se usará para cache de queries frecuentes y mejorar performance.
+---
 
 ## Estado del Proyecto
 
 - **Fase Actual**: Prototipo funcional con datos hardcoded
-- **Siguiente Fase**: Desarrollo del backend NestJS con PostgreSQL y Redis
+- **Siguiente Fase**: Backend NestJS + PostgreSQL + Redis (Q1 2026)
 - **Objetivo**: Plataforma completa con datos en tiempo real desde múltiples bancos
+
+---
+
+## Notas Clave
+
+1. **Frontend actual**: Datos hardcoded, pendiente integración con API
+2. **n8n**: Scraping automatizado a PostgreSQL (n8n cloud) + Google Sheets
+3. **Idempotencia**: Campo `id_unico_scraping` en productos para evitar duplicados
+4. **Eventos**: Cambios de tasas publican eventos al message broker para notificaciones
+5. **Cache**: Redis para queries frecuentes (UVR, SMMLV, productos populares)
+6. **Analytics**: Redirecciones y simulaciones para usuarios anónimos (session_id)
