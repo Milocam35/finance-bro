@@ -132,7 +132,7 @@ export function Hero() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
-            className="text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-tight mb-6"
+            className="text-5xl md:text-6xl lg:text-7xl font-bold text-white leading-tight mb-6"
           >
             Encuentra el crédito
             <br />
@@ -143,7 +143,7 @@ export function Hero() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-lg md:text-xl text-white/80 mb-8 max-w-2xl mx-auto"
+            className="text-lg md:text-xl text-white/80 mb-8 max-w-3xl mx-auto"
           >
             Compara tasas, plazos y requisitos de todas las entidades financieras en un solo lugar.
             Toma decisiones financieras inteligentes con información transparente.
@@ -158,7 +158,7 @@ export function Hero() {
             <Button
               size="lg"
               onClick={() => navigate('/creditos-hipotecarios')}
-              className="bg-[#0466C8] hover:bg-[#0353A4] text-white font-semibold px-8 h-14 text-base shadow-lg shadow-[#0466C8]/30 transition-all duration-300"
+              className="bg-white/10 backdrop-blur-md border-2 border-white/20 hover:bg-white/20 hover:border-white/30 text-white font-semibold px-6 py-3 h-auto rounded-full transition-all duration-300"
             >
               <Search className="w-5 h-5 mr-2" />
               Comparar Créditos Hipotecarios
@@ -170,7 +170,7 @@ export function Hero() {
                 const featuresSection = document.getElementById('features');
                 featuresSection?.scrollIntoView({ behavior: 'smooth' });
               }}
-              className="border-2 border-white/40 text-white hover:bg-white/15 hover:border-white/60 h-14 text-base font-semibold backdrop-blur-sm bg-white/5 transition-all duration-300"
+              className="bg-white/10 backdrop-blur-md border-2 border-white/20 hover:bg-white/20 hover:border-white/30 text-white font-semibold px-6 py-3 h-auto rounded-full transition-all duration-300"
             >
               ¿Cómo funciona?
             </Button>
@@ -183,13 +183,10 @@ export function Hero() {
             transition={{ duration: 0.6, delay: 0.5 }}
             className="mt-16 mb-20 max-w-4xl mx-auto"
           >
-            <div className="relative rounded-2xl border border-white/20 bg-white/5 backdrop-blur-md p-8 shadow-2xl">
-              {/* Decorative gradient overlay */}
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-[#0466C8]/10 to-transparent pointer-events-none" />
-
+            <div className="relative">
               <div className="relative z-10">
                 <div className="text-center mb-6">
-                  <p className="text-white/70 text-sm font-medium mb-2">Información de</p>  
+                  <p className="text-white/70 text-sm font-medium mb-2">Información de</p>
                   <h3 className="text-2xl md:text-3xl font-bold text-white mb-2">
                     +20 Entidades Financieras
                   </h3>
@@ -211,18 +208,31 @@ export function Hero() {
                     { name: "Credifamilia", logo: "/images/banks/credifamilia.png" },
                     { name: "KOA", logo: "/images/banks/koa.png" },
                     { name: "IRIS", logo: "/images/banks/iris.png" },
-                  ].map((bank, index) => (
+                  ].slice(0, window.innerWidth < 768 ? 6 : 10).map((bank, index) => (
                     <motion.div
                       key={bank.name}
                       initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ duration: 0.3, delay: 0.6 + index * 0.05 }}
-                      className="flex items-center justify-center p-3 rounded-lg bg-white/10 backdrop-blur-sm border border-white/10 hover:bg-white/15 hover:border-white/20 transition-all duration-300"
+                      animate={{
+                        opacity: 1,
+                        scale: 1,
+                        y: [0, -8, 0]
+                      }}
+                      transition={{
+                        opacity: { duration: 0.3, delay: 0.6 + index * 0.05 },
+                        scale: { duration: 0.3, delay: 0.6 + index * 0.05 },
+                        y: {
+                          duration: 3 + (index % 3) * 0.5,
+                          repeat: Infinity,
+                          ease: "easeInOut",
+                          delay: index * 0.2
+                        }
+                      }}
+                      className="flex items-center justify-center p-4 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all duration-300"
                     >
                       <img
                         src={bank.logo}
                         alt={bank.name}
-                        className="h-6 md:h-8 w-auto object-contain filter brightness-0 invert opacity-80"
+                        className="h-8 w-auto object-contain filter brightness-0 invert opacity-80"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
                           target.style.display = 'none';
@@ -238,7 +248,7 @@ export function Hero() {
                     </motion.div>
                   ))}
                 </div>
- 
+
                 <p className="text-center text-white/50 text-xs mt-6">
                   Y muchas más...
                 </p>

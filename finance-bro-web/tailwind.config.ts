@@ -14,8 +14,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['Roboto', 'sans-serif'],
-        serif: ['Roboto', 'serif'],
+        sans: ['Hanken Grotesk', 'sans-serif'],
+        serif: ['Hanken Grotesk', 'serif'],
       },
       colors: {
         border: "hsl(var(--border))",

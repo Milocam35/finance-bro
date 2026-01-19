@@ -1,0 +1,12 @@
+{
+  "name": "financebro-scripts",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "convert:webp": "node scripts/convert-to-webp.js"
+  },
+  "devDependencies": {
+    "sharp": "^0.33.5"
+  }
+}

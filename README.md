@@ -238,9 +238,7 @@ Interfaz de usuario para comparación visual, intuitiva y en tiempo real de prod
 
 ### Categorías de Productos
 
-**Disponibles**: Créditos Hipotecarios
-
-**En desarrollo**: Créditos Personales/Automotriz/Empresariales, Seguros (Vida/Auto/Hogar), Tarjetas de Crédito (Sin anualidad/Cashback/Millas), Inversiones (CDT/Fondos/Bonos/Acciones)
+**En Desarrollo**: Créditos Hipotecarios
 
 ### Stack Tecnológico
 

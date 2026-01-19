@@ -12,6 +12,12 @@
               "type": "string"
             },
             {
+              "id": "tipo-producto-001",
+              "name": "tipo_producto",
+              "value": "={{ $json['Tipo de Producto'] }}",
+              "type": "string"
+            },
+            {
               "id": "3fcb2855-40a3-4f85-82b9-10f133006084",
               "name": "pdf_url",
               "value": "={{ $json['URL del PDF (opcional)'] }}",
@@ -50,6 +56,12 @@
               "id": "220983c4-9166-4e09-b8f1-ee013607d03e",
               "name": "finalUrl",
               "value": "={{$json[\"url\"].startsWith(\"http\") ? $json[\"url\"] : \"https://\" + $json[\"url\"]}}",
+              "type": "string"
+            },
+            {
+              "id": "tipo-producto-002",
+              "name": "tipo_producto",
+              "value": "={{ $json.tipo_producto }}",
               "type": "string"
             },
             {
@@ -98,7 +110,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// ============================================\n// NODO: Prepare LLM Prompt - OPTIMIZADO\n// ============================================\n\nconst pdfData = $input.first()?.json?.content?.parts[0]?.text || '';\nconst htmlData = $input.last()?.json?.compact_context || $input.first()?.json?.compact_context || '';\n\n// System prompt - SOLO CRÉDITOS HIPOTECARIOS\nconst systemPrompt = `Extrae ÚNICAMENTE tasas de CRÉDITO HIPOTECARIO de vivienda de bancos colombianos. Responde SOLO con JSON válido.\n\nREGLAS ESTRICTAS:\n- SOLO créditos hipotecarios de vivienda (EXCLUYE leasing habitacional, crédito de consumo, libranza, constructores, etc.)\n- Solo tasas E.A. (Efectivo Anual), ignora M.V. (Mes Vencido)\n- Diferencia VIS (Vivienda Interés Social) y No VIS\n- Diferencia UVR y Pesos\n- Si no hay dato, usa null\n\nIMPORTANTE: NO extraigas información de:\n- Leasing habitacional\n- Créditos para constructores\n- Créditos de consumo\n- Créditos de libranza\n- Ningún otro producto que no sea crédito hipotecario de vivienda`;\n\n// User prompt - SOLO CRÉDITOS HIPOTECARIOS\nconst userPrompt = `DATOS:\\n${pdfData}\\n${htmlData}\\n\\nDevuelve array JSON con esta estructura por cada tasa de CRÉDITO HIPOTECARIO encontrada:\\n{\\n  \"bank\": \"nombre banco\",\\n  \"credit_type\": \"Crédito hipotecario\",\\n  \"housing_type\": \"VIS|No VIS|Aplica para ambos\",\\n  \"rate_denomination\": \"UVR|Pesos\",\\n  \"rate_type\": \"Tasa efectiva anual\",\\n  \"rate\": \"X.XX%\",\\n  \"rate_range\": {\"min\":\"X%\",\"max\":\"Y%\"} | null,\\n  \"description\": \"descripción corta\",\\n  \"conditions\": [\"cond1\"] | null,\\n  \"requirements\": [\"req1\"] | null,\\n  \"min_amount\": \"$X\" | null,\\n  \"max_amount\": \"$X\" | null,\\n  \"max_term\": \"X años\" | null,\\n  \"payment_type\": \"Cuota fija|variable\" | null,\\n  \"additional_info\": {} | null\\n}\\n\\nRECUERDA: El campo credit_type SIEMPRE debe ser \"Crédito hipotecario\". NO incluyas leasing ni otros productos.\\n\\nResponde SOLO el array JSON, sin explicaciones ni markdown.`;\n\nreturn {\n  json: {\n    system_prompt: systemPrompt,\n    user_prompt: userPrompt,\n    messages: [\n      { role: \"system\", content: systemPrompt },\n      { role: \"user\", content: userPrompt }\n    ]\n  }\n};\n"
+        "jsCode": "// ============================================\n// NODO: Prepare LLM Prompt - DINÁMICO POR TIPO DE PRODUCTO\n// ============================================\n\nconst pdfData = $input.first()?.json?.content?.parts[0]?.text || '';\nconst htmlData = $input.last()?.json?.compact_context || $input.first()?.json?.compact_context || '';\n\n// Obtener el tipo de producto seleccionado por el usuario\nconst tipoProducto = $('Add Protocol To Domain').first().json.tipo_producto || 'Crédito hipotecario para compra de vivienda';\n\n// ============================================\n// CONFIGURACIÓN POR TIPO DE PRODUCTO\n// ============================================\nconst productConfig = {\n  'Crédito hipotecario para compra de vivienda': {\n    fields: ['housing_type', 'rate_denomination'],\n    extraFields: `  \"housing_type\": \"VIS|No VIS|Aplica para ambos\",\\n  \"rate_denomination\": \"UVR|Pesos\",`,\n    exclusions: ['leasing habitacional', 'créditos para constructores', 'créditos de consumo', 'créditos de libranza', 'créditos de mejoramiento de vivienda'],\n    instructions: 'Diferencia VIS (Vivienda Interés Social) y No VIS. Diferencia UVR y Pesos.'\n  },\n  'Crédito de consumo': {\n    fields: ['credit_purpose'],\n    extraFields: `  \"credit_purpose\": \"libre inversión|compra cartera|libranza\",`,\n    exclusions: ['créditos hipotecarios', 'leasing', 'tarjetas de crédito', 'créditos de vehículo'],\n    instructions: 'Diferencia entre libre inversión, compra de cartera y libranza.'\n  },\n  'Crédito de vehículo': {\n    fields: ['vehicle_type'],\n    extraFields: `  \"vehicle_type\": \"nuevo|usado\",`,\n    exclusions: ['créditos hipotecarios', 'créditos de consumo', 'leasing', 'tarjetas de crédito'],\n    instructions: 'Diferencia entre vehículos nuevos y usados.'\n  },\n  'Leasing habitacional': {\n    fields: ['housing_type'],\n    extraFields: `  \"housing_type\": \"VIS|No VIS|Aplica para ambos\",`,\n    exclusions: ['créditos hipotecarios', 'créditos de consumo', 'tarjetas de crédito'],\n    instructions: 'Extrae información específica de leasing habitacional, NO créditos hipotecarios tradicionales.'\n  },\n  'Tarjeta de crédito': {\n    fields: ['card_benefits'],\n    extraFields: `  \"annual_fee\": \"$X|Sin cuota de manejo\",\\n  \"benefits\": [\"cashback\", \"millas\", \"descuentos\"],`,\n    exclusions: ['créditos hipotecarios', 'créditos de consumo', 'créditos de vehículo', 'leasing'],\n    instructions: 'Extrae tasa de interés, cuota de manejo anual y beneficios principales.'\n  }\n};\n\nconst config = productConfig[tipoProducto] || productConfig['Crédito hipotecario para compra de vivienda'];\n\n// System prompt dinámico\nconst systemPrompt = `Extrae ÚNICAMENTE tasas de ${tipoProducto.toUpperCase()} en Colombia de bancos colombianos. Responde SOLO con JSON válido.\n\nREGLAS ESTRICTAS:\n- SOLO ${tipoProducto} (EXCLUYE: ${config.exclusions.join(', ')})\n- Solo tasas E.A. (Efectivo Anual), ignora M.V. (Mes Vencido)\n- ${config.instructions}\n- Si no hay dato, usa null\n\nIMPORTANTE: NO extraigas información de:\n${config.exclusions.map(e => '- ' + e.charAt(0).toUpperCase() + e.slice(1)).join('\\n')}\n- Ningún otro producto que no sea ${tipoProducto}`;\n\n// User prompt dinámico\nconst userPrompt = `DATOS:\\n${pdfData}\\n${htmlData}\\n\\nDevuelve array JSON con esta estructura por cada tasa de ${tipoProducto.toUpperCase()} encontrada:\\n{\\n  \"bank\": \"nombre banco\",\\n  \"credit_type\": \"${tipoProducto}\",\\n${config.extraFields}\\n  \"rate_type\": \"Tasa efectiva anual\",\\n  \"rate\": \"X.XX%\",\\n  \"rate_range\": {\"min\":\"X%\",\"max\":\"Y%\"} | null,\\n  \"description\": \"descripción corta\",\\n  \"conditions\": [\"cond1\"] | null,\\n  \"requirements\": [\"req1\"] | null,\\n  \"min_amount\": \"$X\" | null,\\n  \"max_amount\": \"$X\" | null,\\n  \"max_term\": \"X años\" | null,\\n  \"payment_type\": \"Cuota fija|variable\" | null,\\n  \"additional_info\": {} | null\\n}\\n\\nRECUERDA: El campo credit_type SIEMPRE debe ser \"${tipoProducto}\". NO incluyas ${config.exclusions.join(', ')}.\\n\\nResponde SOLO el array JSON, sin explicaciones ni markdown.`;\n\nreturn {\n  json: {\n    tipo_producto: tipoProducto,\n    system_prompt: systemPrompt,\n    user_prompt: userPrompt,\n    messages: [\n      { role: \"system\", content: systemPrompt },\n      { role: \"user\", content: userPrompt }\n    ]\n  }\n};\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -111,13 +123,37 @@
     },
     {
       "parameters": {
-        "formTitle": "url form",
-        "formDescription": "Form to submit the URL of the webpage you want to Scrap  and PDF you want to check",
+        "formTitle": "Scraper de Productos Financieros",
+        "formDescription": "Ingresa la URL del producto financiero que deseas extraer y selecciona el tipo de producto",
         "formFields": {
           "values": [
             {
               "fieldLabel": "url",
-              "placeholder": "e.g. https://www.bancolombia.com/",
+              "placeholder": "e.g. https://www.bancolombia.com/personas/creditos/vivienda",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Tipo de Producto",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Crédito hipotecario para compra de vivienda"
+                  },
+                  {
+                    "option": "Crédito de consumo"
+                  },
+                  {
+                    "option": "Crédito de vehículo"
+                  },
+                  {
+                    "option": "Leasing habitacional"
+                  },
+                  {
+                    "option": "Tarjeta de crédito"
+                  }
+                ]
+              },
               "requiredField": true
             },
             {
@@ -157,7 +193,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// 1. Obtener todos los items de entrada\nconst items = $input.all().map(i => i.json);\n\nconst domainsNode = $(\"Add Protocol To Domain\").first().json;\nconst page_url = domainsNode.finalUrl;\nconst pdf_url = domainsNode.pdf_url;\n\n// Función MEJORADA para normalizar texto para IDs consistentes\nfunction normalizeForId(text) {\n    if (!text) return '';\n    \n    return text\n        .toString()\n        .toLowerCase()  // Convertir a minúsculas\n        .normalize('NFD')  // Descomponer caracteres acentuados\n        .replace(/[\\u0300-\\u036f]/g, '')  // Eliminar marcas diacríticas (tildes)\n        .replace(/\\s+/g, '')  // Eliminar TODOS los espacios\n        .replace(/_+/g, '')  // Eliminar guiones bajos\n        .replace(/-+/g, '')  // Eliminar guiones\n        .replace(/[^a-z0-9%.]/g, '')  // Solo letras minúsculas, números, % y .\n        .trim();\n}\n\n// Función para generar ID único consistente\nfunction generateUniqueId(banco, tipoCredito, tipoVivienda, denominacion, tasa) {\n    const parts = [\n        normalizeForId(banco),\n        normalizeForId(tipoCredito),\n        normalizeForId(tipoVivienda),\n        normalizeForId(denominacion),\n        normalizeForId(tasa)\n    ].filter(p => p);  // Eliminar partes vacías\n    \n    return parts.join('__');\n}\n\n// Función para obtener fecha y hora en Colombia\nfunction obtenerFechaHoraColombia() {\n    const opciones = {\n        timeZone: \"America/Bogota\",\n        hour12: false,\n    };\n\n    const fechaHora = new Date().toLocaleString(\"sv-SE\", opciones).replace(\" \", \"T\");\n    const [fecha, hora] = fechaHora.split(\"T\");\n\n    return { fecha, hora };\n}\n\nconst { fecha, hora } = obtenerFechaHoraColombia();\n\n// 2. Procesar items y generar IDs únicos consistentes\nlet result = items.map(item => {\n    const banco = item.bank || '';\n    const tipoCredito = item.credit_type || '';\n    const tipoVivienda = item.housing_type || '';\n    const denominacion = item.rate_denomination || '';\n    const tasa = item.rate || '';\n    \n    // Generar ID único de manera determinística\n    const idUnico = generateUniqueId(banco, tipoCredito, tipoVivienda, denominacion, tasa);\n\n    return {\n        id_unico: idUnico,\n        banco: banco,\n        tipo_credito: tipoCredito,\n        tipo_vivienda: tipoVivienda,\n        denominacion: denominacion,\n        tipo_tasa: item.rate_type || '',\n        tasa: tasa,\n\n        tasa_minima: item.rate_range?.min || '',\n        tasa_maxima: item.rate_range?.max || '',\n\n        monto_minimo: item.min_amount || '',\n        monto_maximo: item.max_amount || '',\n        plazo_maximo: item.max_term || '',\n        tipo_pago: item.payment_type || '',\n\n        descripcion: item.description || '',\n\n        condiciones: Array.isArray(item.conditions)\n            ? item.conditions.join(\"; \")\n            : (item.conditions || ''),\n\n        requisitos: Array.isArray(item.requirements)\n            ? item.requirements.join(\"; \")\n            : (item.requirements || ''),\n\n        descuento_nomina: item.additional_info?.descuento_nomina || '',\n        beneficio_avaluo: item.additional_info?.beneficio_avaluo || '',\n\n        // Metadata en hora de Colombia\n        fecha_extraccion: fecha,\n        hora_extraccion: hora,\n\n        // Links de donde se extrajo la información\n        url_pagina: page_url || '',\n        url_pdf: pdf_url || ''\n    };\n});\n\n// 3. Eliminar duplicados usando el id_unico generado\nconst unique = {};\nresult.forEach(item => {\n    if (!unique[item.id_unico]) {\n        unique[item.id_unico] = item;\n    }\n});\n\n// 4. Convertir a formato n8n items\nreturn Object.values(unique).map(r => ({ json: r }));\n"
+        "jsCode": "// 1. Obtener todos los items de entrada\nconst items = $input.all().map(i => i.json);\n\nconst domainsNode = $(\"Add Protocol To Domain\").first().json;\nconst page_url = domainsNode.finalUrl;\nconst pdf_url = domainsNode.pdf_url;\n\n// Función MEJORADA para normalizar texto para IDs consistentes\nfunction normalizeForId(text) {\n    if (!text) return '';\n    \n    return text\n        .toString()\n        .toLowerCase()  // Convertir a minúsculas\n        .normalize('NFD')  // Descomponer caracteres acentuados\n        .replace(/[\\u0300-\\u036f]/g, '')  // Eliminar marcas diacríticas (tildes)\n        .replace(/\\s+/g, '')  // Eliminar TODOS los espacios\n        .replace(/_+/g, '')  // Eliminar guiones bajos\n        .replace(/-+/g, '')  // Eliminar guiones\n        .replace(/[^a-z0-9%.]/g, '')  // Solo letras minúsculas, números, % y .\n        .trim();\n}\n\n// Función para generar ID único consistente\nfunction generateUniqueId(banco, tipoCredito, tipoVivienda, denominacion) {\n    const parts = [\n        normalizeForId(banco),\n        normalizeForId(tipoCredito),\n        normalizeForId(tipoVivienda),\n        normalizeForId(denominacion),\n    ].filter(p => p);  // Eliminar partes vacías\n    \n    return parts.join('__');\n}\n\n// Función para obtener fecha y hora en Colombia\nfunction obtenerFechaHoraColombia() {\n    const opciones = {\n        timeZone: \"America/Bogota\",\n        hour12: false,\n    };\n\n    const fechaHora = new Date().toLocaleString(\"sv-SE\", opciones).replace(\" \", \"T\");\n    const [fecha, hora] = fechaHora.split(\"T\");\n\n    return { fecha, hora };\n}\n\nconst { fecha, hora } = obtenerFechaHoraColombia();\n\n// 2. Procesar items y generar IDs únicos consistentes\nlet result = items.map(item => {\n    const banco = item.bank || '';\n    const tipoCredito = item.credit_type || '';\n    const tipoVivienda = item.housing_type || '';\n    const denominacion = item.rate_denomination || '';\n    const tasa = item.rate || '';\n    \n    // Generar ID único de manera determinística\n    const idUnico = generateUniqueId(banco, tipoCredito, tipoVivienda, denominacion);\n\n    return {\n        id_unico: idUnico,\n        banco: banco,\n        tipo_credito: tipoCredito,\n        tipo_vivienda: tipoVivienda,\n        denominacion: denominacion,\n        tipo_tasa: item.rate_type || '',\n        tasa: tasa,\n\n        tasa_minima: item.rate_range?.min || '',\n        tasa_maxima: item.rate_range?.max || '',\n\n        monto_minimo: item.min_amount || '',\n        monto_maximo: item.max_amount || '',\n        plazo_maximo: item.max_term || '',\n        tipo_pago: item.payment_type || '',\n\n        descripcion: item.description || '',\n\n        condiciones: Array.isArray(item.conditions)\n            ? item.conditions.join(\"; \")\n            : (item.conditions || ''),\n\n        requisitos: Array.isArray(item.requirements)\n            ? item.requirements.join(\"; \")\n            : (item.requirements || ''),\n\n        descuento_nomina: item.additional_info?.descuento_nomina || '',\n        beneficio_avaluo: item.additional_info?.beneficio_avaluo || '',\n\n        // Metadata en hora de Colombia\n        fecha_extraccion: fecha,\n        hora_extraccion: hora,\n\n        // Links de donde se extrajo la información\n        url_pagina: page_url || '',\n        url_pdf: pdf_url || ''\n    };\n});\n\n// 3. Eliminar duplicados usando el id_unico generado\nconst unique = {};\nresult.forEach(item => {\n    if (!unique[item.id_unico]) {\n        unique[item.id_unico] = item;\n    }\n});\n\n// 4. Convertir a formato n8n items\nreturn Object.values(unique).map(r => ({ json: r }));\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -544,7 +580,7 @@
           "mode": "list",
           "cachedResultName": "models/gemini-2.5-flash"
         },
-        "text": "Extrae SOLO información de tasas de crédito hipotecario/vivienda de este PDF bancario.\n\nEXTRAE:\n- Tasas E.A. (Efectivo Anual) para créditos hipotecarios\n- Diferencia entre VIS y No VIS\n- Diferencia entre UVR y Pesos\n- Plazos, montos, condiciones\n\nIGNORA:\n- Información legal/regulatoria\n- Otros productos (consumo, tarjetas, libranzas)\n- Texto repetido o decorativo\n\nFORMATO: Devuelve tablas en Markdown. Ejemplo:\n| Tipo | Vivienda | Denominación | Tasa E.A. |\n|------|----------|--------------|----------|\n| Hipotecario | VIS | UVR | 6.50% |\n\nSolo tablas relevantes, sin explicaciones.",
+        "text": "={{ \nconst tipoProducto = $('Add Protocol To Domain').first().json.tipo_producto || 'Crédito hipotecario para compra de vivienda';\n\nconst pdfInstructions = {\n  'Crédito hipotecario para compra de vivienda': `Extrae SOLO información de tasas de CRÉDITO HIPOTECARIO PARA COMPRA DE VIVIENDA EN COLOMBIA de este PDF bancario.\n\nEXTRAE:\n- Tasas E.A. (Efectivo Anual) para créditos hipotecarios de compra de vivienda en Colombia\n- Diferencia entre VIS y No VIS\n- Diferencia entre UVR y Pesos\n- Plazos, montos, condiciones\n\nIGNORA:\n- Información legal/regulatoria\n- Otros productos (consumo, tarjetas, libranzas)\n- Leasing habitacional\n- Créditos de mejoramiento de vivienda\n- Créditos para constructores\n\nFORMATO: Devuelve tablas en Markdown. Ejemplo:\n| Tipo | Vivienda | Denominación | Tasa E.A. |\n|------|----------|--------------|----------|\n| Compra Vivienda | VIS | UVR | 6.50% |`,\n\n  'Crédito de consumo': `Extrae SOLO información de tasas de CRÉDITO DE CONSUMO de este PDF bancario.\n\nEXTRAE:\n- Tasas E.A. para créditos de consumo (libre inversión, compra de cartera, libranza)\n- Diferencia entre modalidades\n- Plazos, montos, condiciones\n\nIGNORA:\n- Créditos hipotecarios\n- Tarjetas de crédito\n- Otros productos\n\nFORMATO: Devuelve tablas en Markdown.`,\n\n  'Crédito de vehículo': `Extrae SOLO información de tasas de CRÉDITO DE VEHÍCULO de este PDF bancario.\n\nEXTRAE:\n- Tasas E.A. para créditos de vehículo\n- Diferencia entre nuevo y usado\n- Plazos, montos, condiciones\n\nIGNORA:\n- Créditos hipotecarios\n- Créditos de consumo\n- Otros productos\n\nFORMATO: Devuelve tablas en Markdown.`,\n\n  'Leasing habitacional': `Extrae SOLO información de tasas de LEASING HABITACIONAL de este PDF bancario.\n\nEXTRAE:\n- Tasas E.A. para leasing habitacional\n- Diferencia entre VIS y No VIS\n- Plazos, montos, condiciones\n\nIGNORA:\n- Créditos hipotecarios tradicionales\n- Otros productos\n\nFORMATO: Devuelve tablas en Markdown.`,\n\n  'Tarjeta de crédito': `Extrae SOLO información de TARJETAS DE CRÉDITO de este PDF bancario.\n\nEXTRAE:\n- Tasas E.A. para tarjetas de crédito\n- Cuota de manejo anual\n- Beneficios principales (cashback, millas, descuentos)\n\nIGNORA:\n- Créditos\n- Otros productos\n\nFORMATO: Devuelve tablas en Markdown.`\n};\n\nreturn pdfInstructions[tipoProducto] || pdfInstructions['Crédito hipotecario para compra de vivienda'] + '\\n\\nSolo tablas relevantes, sin explicaciones.';\n}}",
         "inputType": "binary",
         "options": {}
       },
@@ -981,9 +1017,11 @@
   },
   "active": false,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   },
-  "versionId": "c96a57fe-2168-4d55-8baa-3a60aaa495cf",
+  "versionId": "6a1d2ef0-a322-4b77-98fc-9ca0fa0d54de",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "1618e2f459f31c8fc5b2c8230db6ae5636ce6f0cb05a8124de87b1bf1e2d6588"

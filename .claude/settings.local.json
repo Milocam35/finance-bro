@@ -6,7 +6,9 @@
       "Bash(if [ -d \"finance-hub-main/.git\" ])",
       "Bash(then rm -rf \"finance-hub-main/.git\")",
       "Bash(else echo \"No existe repositorio en finance-hub-main\")",
-      "Bash(fi)"
+      "Bash(fi)",
+      "Bash(npm install:*)",
+      "Bash(del *.webp)"
     ]
   }
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, ChevronDown, Search, CreditCard, Shield, TrendingUp, Building2, LogIn, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -37,18 +37,52 @@ const navItems = [
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
+  const [isVisible, setIsVisible] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
+
+  useEffect(() => {
+    const controlHeader = () => {
+      const currentScrollY = window.scrollY;
+
+      if (currentScrollY < 10) {
+        // En el top de la página
+        setIsVisible(true);
+      } else if (currentScrollY > lastScrollY && currentScrollY > 100) {
+        // Scrolling down y pasó los 100px
+        setIsVisible(false);
+      } else if (currentScrollY < lastScrollY) {
+        // Scrolling up
+        setIsVisible(true);
+      }
+
+      setLastScrollY(currentScrollY);
+    };
+
+    window.addEventListener("scroll", controlHeader);
+    return () => window.removeEventListener("scroll", controlHeader);
+  }, [lastScrollY]);
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-card border-b border-border">
+    <motion.header
+      initial={{ y: 0 }}
+      animate={{
+        y: isVisible ? 0 : -100,
+      }}
+      transition={{
+        duration: 0.3,
+        ease: "easeInOut",
+      }}
+      className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-b from-black/60 via-black/40 to-transparent transition-all duration-300"
+    >
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16 lg:h-20">
           {/* Logo */}
           <a href="/" className="flex items-center gap-0">
-            <span className="text-2xl font-bold tracking-tight leading-none inline-flex items-baseline" style={{ fontFamily: "'Roboto', sans-serif", fontWeight: 900 }}>
-              <span className="text-foreground">Finance</span>
-              <span className="text-[#0466C8]">Br</span>
+            <span className="text-2xl font-bold tracking-tight leading-none inline-flex items-baseline" style={{ fontFamily: "'Hanken Grotesk', sans-serif", fontWeight: 900 }}>
+              <span className="text-white">Finance</span>
+              <span className="text-white">Br</span>
               <span className="inline-flex items-center justify-center" style={{ marginLeft: '0.03em', transform: 'translateY(3px)' }}>
-                <Search className="text-[#0466C8]" size={20} strokeWidth={4} />
+                <Search className="text-white" size={20} strokeWidth={4} />
               </span>
             </span>
           </a>
@@ -63,7 +97,7 @@ export function Header() {
                 onMouseLeave={() => setOpenSubmenu(null)}
               >
                 <button
-                  className="flex items-center gap-1 px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-muted"
+                  className="flex items-center gap-1 px-4 py-2 text-sm font-medium text-gray-300 hover:text-white transition-colors rounded-lg hover:bg-white/10"
                 >
                   <item.icon className="w-4 h-4" />
                   {item.label}
@@ -115,14 +149,14 @@ export function Header() {
             <Button
               variant="ghost"
               size="sm"
-              className="px-5 py-2 font-medium"
+              className="px-2 py-4 font-medium text-gray-300 hover:text-white hover:bg-white/10 transition-all duration-200 rounded-full"
             >
               <LogIn className="w-4 h-4 mr-2" />
               Iniciar Sesión
             </Button>
             <Button
               size="sm"
-              className="px-6 py-2 font-semibold bg-[#0466C8] hover:bg-[#0353A4] text-white"
+              className="px-5 py-2.5 font-semibold bg-[#0466C8] hover:bg-[#0353A4] text-white rounded-full"
             >
               <UserPlus className="w-4 h-4 mr-2" />
               Registrarse
@@ -132,12 +166,12 @@ export function Header() {
           {/* Mobile Menu Button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="lg:hidden p-2 rounded-lg hover:bg-muted transition-colors"
+            className="lg:hidden p-2 rounded-lg hover:bg-white/10 transition-colors"
           >
             {mobileMenuOpen ? (
-              <X className="w-6 h-6" />
+              <X className="w-6 h-6 text-white" />
             ) : (
-              <Menu className="w-6 h-6" />
+              <Menu className="w-6 h-6 text-white" />
             )}
           </button>
         </div>
@@ -150,7 +184,7 @@ export function Header() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="lg:hidden bg-card border-t border-border"
+            className="lg:hidden bg-[#001845] border-t border-white/10"
           >
             <div className="container mx-auto px-4 py-4 space-y-2">
               {navItems.map((item) => (
@@ -161,7 +195,7 @@ export function Header() {
                         openSubmenu === item.label ? null : item.label
                       )
                     }
-                    className="flex items-center justify-between w-full px-4 py-3 text-sm font-medium text-foreground rounded-lg hover:bg-muted"
+                    className="flex items-center justify-between w-full px-4 py-3 text-sm font-medium text-white rounded-lg hover:bg-white/10"
                   >
                     <span className="flex items-center gap-2">
                       <item.icon className="w-4 h-4" />
@@ -176,12 +210,12 @@ export function Header() {
                     )}
                   </button>
                   {item.submenu && openSubmenu === item.label && (
-                    <div className="ml-6 mt-1 space-y-1">
+                    <div className="ml-6 mt-1 space-y-1 bg-black/20 rounded-lg p-2">
                       {item.submenu.map((subitem) => (
                         <a
                           key={subitem.label}
                           href={subitem.href}
-                          className="block px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
+                          className="block px-4 py-2 text-sm text-gray-300 hover:text-white rounded-md hover:bg-white/10"
                         >
                           {subitem.label}
                         </a>
@@ -207,6 +241,6 @@ export function Header() {
           </motion.div>
         )}
       </AnimatePresence>
-    </header>
+    </motion.header>
   );
 }
