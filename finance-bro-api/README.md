@@ -35,7 +35,7 @@ cd docker
 docker compose up -d
 ```
 
-4. Ejecutar migraciones (próximamente):
+4. Ejecutar migraciones:
 ```bash
 npm run migration:run
 ```
@@ -105,6 +105,253 @@ docker compose logs -f
 docker compose down
 ```
 
+## 🔄 Guía de Migraciones TypeORM
+
+### Conceptos Básicos
+
+Las **migraciones** son archivos de control de versiones para tu esquema de base de datos. Cada vez que modificas una entidad TypeORM, debes generar una migración para aplicar esos cambios a PostgreSQL.
+
+### Scripts Disponibles
+
+```bash
+# Generar migración desde cambios en entidades
+npm run migration:generate -- src/database/migrations/NombreDeLaMigracion
+
+# Ejecutar migraciones pendientes
+npm run migration:run
+
+# Revertir última migración ejecutada
+npm run migration:revert
+
+# Mostrar estado de migraciones (ejecutadas vs pendientes)
+npm run migration:show
+
+# Crear migración vacía (para SQL personalizado)
+npm run migration:create -- src/database/migrations/NombreDeLaMigracion
+
+# Ejecutar seeds de catálogos
+npm run seed:catalogs
+```
+
+---
+
+### 📋 Flujo de Trabajo: Modificar una Entidad
+
+#### **Escenario**: Agregaste un nuevo campo a `ProductoCredito`
+
+**Paso 1: Modificar la entidad**
+```typescript
+// src/productos/entities/producto-credito.entity.ts
+@Entity('productos_credito')
+export class ProductoCredito {
+  // ... campos existentes
+
+  @Column({ type: 'text', nullable: true })
+  nuevo_campo: string;  // ← Campo nuevo
+}
+```
+
+**Paso 2: Generar migración**
+```bash
+npm run migration:generate -- src/database/migrations/AddNuevoCampoToProducto
+```
+
+**Resultado**: Se crea archivo `src/database/migrations/1769123456789-AddNuevoCampoToProducto.ts`
+
+**Paso 3: Revisar la migración generada**
+```typescript
+export class AddNuevoCampoToProducto1769123456789 implements MigrationInterface {
+    public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`ALTER TABLE "productos_credito" ADD "nuevo_campo" text`);
+    }
+
+    public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`ALTER TABLE "productos_credito" DROP COLUMN "nuevo_campo"`);
+    }
+}
+```
+
+**Paso 4: Ejecutar la migración**
+```bash
+npm run migration:run
+```
+
+**Paso 5: Verificar en PostgreSQL**
+```bash
+docker exec financebro-postgres psql -U financebro -d financebro_db -c "\d productos_credito"
+```
+
+---
+
+### 🔥 Recrear Base de Datos desde Cero
+
+#### **Escenario**: Quieres eliminar toda la DB y empezar de nuevo
+
+**⚠️ ADVERTENCIA**: Esto eliminará TODOS los datos.
+
+**Paso 1: Detener la aplicación**
+```bash
+# Ctrl+C en terminal donde corre npm run start:dev
+```
+
+**Paso 2: Eliminar contenedor y volumen de PostgreSQL**
+```bash
+cd docker
+docker compose down -v  # -v elimina volúmenes (datos persistentes)
+```
+
+**Paso 3: Levantar PostgreSQL limpio**
+```bash
+docker compose up -d
+```
+
+**Paso 4: Ejecutar TODAS las migraciones**
+```bash
+npm run migration:run
+```
+
+**Resultado**: Se ejecutan todas las migraciones en orden:
+```
+✓ 1769107001162-InitialSchema.ts
+✓ 1769108445014-UpdateProductoCreditoFields.ts
+✓ [Otras migraciones futuras...]
+```
+
+**Paso 5: Ejecutar seeds**
+```bash
+npm run seed:catalogs
+```
+
+**Resultado**:
+```
+✓ 4 tipos_credito insertados
+✓ 4 tipos_vivienda insertados
+✓ 2 denominaciones insertadas
+✓ 2 tipos_tasa insertados
+✓ 2 tipos_pago insertados
+```
+
+---
+
+### 🛠️ Comandos Útiles para Debugging
+
+#### Ver qué migraciones se han ejecutado
+```bash
+npm run migration:show
+```
+
+**Output**:
+```
+[X] InitialSchema1769107001162
+[X] UpdateProductoCreditoFields1769108445014
+[ ] AddNewField1769999999999  ← Pendiente
+```
+
+#### Ver estructura de una tabla
+```bash
+docker exec financebro-postgres psql -U financebro -d financebro_db -c "\d productos_credito"
+```
+
+#### Contar registros en catálogos
+```bash
+docker exec financebro-postgres psql -U financebro -d financebro_db -c "
+  SELECT 'tipos_credito' AS tabla, COUNT(*) FROM tipos_credito
+  UNION ALL
+  SELECT 'tipos_vivienda', COUNT(*) FROM tipos_vivienda
+  UNION ALL
+  SELECT 'denominaciones', COUNT(*) FROM denominaciones
+  UNION ALL
+  SELECT 'tipos_tasa', COUNT(*) FROM tipos_tasa
+  UNION ALL
+  SELECT 'tipos_pago', COUNT(*) FROM tipos_pago
+  UNION ALL
+  SELECT 'entidades_financieras', COUNT(*) FROM entidades_financieras;
+"
+```
+
+#### Revertir última migración (si algo salió mal)
+```bash
+npm run migration:revert
+```
+
+**IMPORTANTE**: Solo revierte la **última** migración ejecutada.
+
+#### Revertir múltiples migraciones
+```bash
+npm run migration:revert  # Revierte la última
+npm run migration:revert  # Revierte la penúltima
+npm run migration:revert  # Revierte la antepenúltima
+# ... repetir según necesites
+```
+
+---
+
+### 🚀 Setup Inicial para Nuevo Desarrollador
+
+Si clonas el repositorio por primera vez:
+
+```bash
+# 1. Instalar dependencias
+npm install
+
+# 2. Copiar .env
+cp .env.example .env
+# Editar .env con tus valores
+
+# 3. Levantar PostgreSQL
+cd docker
+docker compose up -d
+cd ..
+
+# 4. Ejecutar migraciones
+npm run migration:run
+
+# 5. Ejecutar seeds
+npm run seed:catalogs
+
+# 6. Verificar
+docker exec financebro-postgres psql -U financebro -d financebro_db -c "\dt"
+
+# 7. Iniciar app
+npm run start:dev
+```
+
+---
+
+### ❌ Errores Comunes
+
+#### Error: "Cannot find module 'dotenv'"
+```bash
+npm install dotenv
+```
+
+#### Error: "relation 'productos_credito' already exists"
+- **Causa**: Intentaste ejecutar migraciones que ya se ejecutaron
+- **Solución**: Verifica con `npm run migration:show`
+
+#### Error: "Entity metadata for EntidadFinanciera was not found"
+- **Causa**: La entidad no está registrada en `src/database/data-source.ts`
+- **Solución**: Agrega la entidad al array `entities: [...]`
+
+#### Error: "Database connection refused"
+- **Causa**: PostgreSQL no está corriendo
+- **Solución**: `cd docker && docker compose up -d`
+
+#### Error: "ALTER TABLE ... DROP COLUMN" falla
+- **Causa**: Hay datos en la columna o hay foreign keys
+- **Solución**:
+  1. Eliminar datos primero
+  2. Eliminar constraints de foreign keys
+  3. Luego eliminar columna
+
+---
+
+### 📚 Referencias
+
+- [TypeORM Migrations Documentation](https://typeorm.io/migrations)
+- [TypeORM Entity Documentation](https://typeorm.io/entities)
+- [PostgreSQL ALTER TABLE](https://www.postgresql.org/docs/current/sql-altertable.html)
+
 ## 📝 Notas de Desarrollo
 
 - Las entidades TypeORM están en `src/catalogos/entities` y `src/productos/entities`
@@ -155,49 +402,110 @@ docker compose down
 - `productos_credito`: `descripcion` ahora NOT NULL (era nullable)
 - `tasas_vigentes`: `tasa_valor` ahora nullable (permite rangos sin valor único)
 
-### 📋 Día 3: Módulo de Catálogos
-- [ ] Crear CatalogosModule
-- [ ] Implementar CatalogosService con métodos:
-  - [ ] `findEntidadByNombre(nombre_normalizado)`
-  - [ ] `createEntidad(data)`
-  - [ ] `findTipoCreditoByCodigo(codigo)`
-  - [ ] `findTipoViviendaByCodigo(codigo)`
-  - [ ] `findDenominacionByCodigo(codigo)`
-  - [ ] `findTipoTasaByCodigo(codigo)`
-  - [ ] `findTipoPagoByCodigo(codigo)`
-- [ ] Tests unitarios de CatalogosService
+### ✅ Día 3: Módulo de Catálogos (COMPLETADO)
+- [x] Crear CatalogosModule
+- [x] Implementar CatalogosService con métodos:
+  - [x] `findEntidadByNombre(nombre_normalizado)`
+  - [x] `createEntidad(data)`
+  - [x] `findTipoCreditoByCodigo(codigo)`
+  - [x] `findTipoViviendaByCodigo(codigo)`
+  - [x] `findDenominacionByCodigo(codigo)`
+  - [x] `findTipoTasaByCodigo(codigo)`
+  - [x] `findTipoPagoByCodigo(codigo)`
+  - [x] `getOrCreateEntidad(nombre_normalizado, nombre)` - Método helper
+- [x] Tests unitarios de CatalogosService (11 test suites)
+- [x] Registrar CatalogosModule en AppModule
 
-### 📋 Día 4: Módulo de Productos
-- [ ] Crear ProductosModule
-- [ ] Implementar ProductosService con métodos:
-  - [ ] `findByIdUnico(id_unico_scraping)`
-  - [ ] `create(data)`
-  - [ ] `update(id, data)`
-  - [ ] `getTasaVigente(producto_id)`
-  - [ ] `createTasaVigente(data)`
-  - [ ] `updateTasaVigente(producto_id, data)`
-  - [ ] `insertTasaHistorica(data)`
-  - [ ] `upsertMontos(producto_id, data)`
-  - [ ] `replaceCondiciones(producto_id, condiciones[])`
-  - [ ] `replaceRequisitos(producto_id, requisitos[])`
-  - [ ] `replaceBeneficios(producto_id, beneficios[])`
-- [ ] Tests unitarios de ProductosService
+**Archivos creados**:
+- [src/catalogos/catalogos.module.ts](src/catalogos/catalogos.module.ts) - Módulo con imports TypeORM
+- [src/catalogos/catalogos.service.ts](src/catalogos/catalogos.service.ts) - Servicio con 9 métodos
+- [src/catalogos/catalogos.service.spec.ts](src/catalogos/catalogos.service.spec.ts) - Tests unitarios completos
 
-### 🔌 Día 5: Endpoint de Ingesta
-- [ ] Crear ScrapingModule
-- [ ] Crear DTO: N8nProductoDto con validaciones
-- [ ] Implementar ApiKeyGuard para seguridad
-- [ ] Crear ScrapingController:
-  - [ ] `POST /api/scraping/ingest`
-- [ ] Implementar ScrapingService con lógica completa:
-  - [ ] Normalización de datos
-  - [ ] Búsqueda/creación de entidad financiera
-  - [ ] Resolución de catálogos
-  - [ ] Upsert de producto
-  - [ ] Detección de cambio de tasa
-  - [ ] Actualización de relaciones
-  - [ ] Log de ejecución
-- [ ] Manejo de errores y validaciones
+**Funcionalidades implementadas**:
+- Búsqueda de catálogos por código (tipos) o nombre normalizado (entidades)
+- Creación de nuevas entidades financieras
+- Pattern getOrCreate para entidades (upsert)
+- Logging con contexto para debugging
+- Todos los métodos retornan solo registros activos (activo: true)
+
+### ✅ Día 4: Módulo de Productos (COMPLETADO)
+- [x] Crear ProductosModule con imports de TypeORM
+- [x] Implementar ProductosService con métodos:
+  - [x] `findByIdUnico(id_unico_scraping)` - Búsqueda por ID único de n8n
+  - [x] `create(data)` - Crear nuevo producto
+  - [x] `update(id, data)` - Actualizar producto existente
+  - [x] `findById(id)` - Obtener producto con relaciones
+  - [x] `getTasaVigente(producto_id)` - Obtener tasa vigente
+  - [x] `createTasaVigente(data)` - Crear nueva tasa vigente
+  - [x] `updateTasaVigente(producto_id, data)` - Upsert de tasa vigente
+  - [x] `insertTasaHistorica(data)` - Insertar en histórico
+  - [x] `getHistoricoTasas(producto_id, limit)` - Obtener histórico
+  - [x] `upsertMontos(producto_id, data)` - Upsert de montos
+  - [x] `replaceCondiciones(producto_id, condiciones[])` - Reemplazar condiciones
+  - [x] `replaceRequisitos(producto_id, requisitos[])` - Reemplazar requisitos
+  - [x] `replaceBeneficios(producto_id, beneficios[])` - Reemplazar beneficios
+  - [x] `registrarEjecucion(data)` - Registrar ejecución de scraping
+  - [x] `actualizarEjecucion(id, data)` - Actualizar ejecución
+- [x] Tests unitarios de ProductosService (20+ test cases)
+- [x] Registrar ProductosModule en AppModule
+
+**Archivos creados**:
+- [src/productos/productos.module.ts](src/productos/productos.module.ts) - Módulo con imports de 8 entidades
+- [src/productos/productos.service.ts](src/productos/productos.service.ts) - Servicio con 18 métodos (350 líneas)
+- [src/productos/productos.service.spec.ts](src/productos/productos.service.spec.ts) - Tests unitarios completos (430 líneas)
+
+**Funcionalidades implementadas**:
+- CRUD completo de productos con logging integrado
+- Búsqueda por ID único de scraping (idempotencia n8n)
+- Upsert pattern para tasas vigentes y montos
+- Replace pattern para relaciones one-to-many (condiciones, requisitos, beneficios)
+- Gestión de histórico de tasas con orden DESC
+- Registro y auditoría de ejecuciones de scraping
+- Manejo de errores con NotFoundException
+- Soporte para valores null/undefined con nullish coalescing (??)
+
+### ✅ Día 5: Endpoint de Ingesta (COMPLETADO)
+- [x] Crear ScrapingModule con imports de CatalogosModule y ProductosModule
+- [x] Crear DTO: N8nProductoDto con validaciones class-validator (22 campos)
+- [x] Implementar ApiKeyGuard para seguridad con header x-api-key
+- [x] Crear ScrapingController:
+  - [x] `POST /api/scraping/ingest` - Endpoint de ingesta desde n8n
+- [x] Implementar ScrapingService con lógica completa (500+ líneas):
+  - [x] Normalización de datos n8n (parseo de tasas, montos, plazos)
+  - [x] Búsqueda/creación de entidad financiera con getOrCreate
+  - [x] Resolución de catálogos (mapeo de códigos a UUIDs)
+  - [x] Upsert de producto (crear o actualizar según id_unico)
+  - [x] Detección de cambio de tasa (comparación con histórico)
+  - [x] Upsert de tasa vigente y inserción en histórico
+  - [x] Upsert de montos del producto
+  - [x] Reemplazo de condiciones, requisitos y beneficios
+  - [x] Logging contextual en todas las operaciones
+- [x] Habilitar ValidationPipe global en main.ts
+- [x] Manejo de errores y validaciones completo
+- [x] Registrar ScrapingModule en AppModule
+
+**Archivos creados**:
+- [src/scraping/dto/n8n-producto.dto.ts](src/scraping/dto/n8n-producto.dto.ts) - DTO con 22 campos validados (220 líneas)
+- [src/scraping/guards/api-key.guard.ts](src/scraping/guards/api-key.guard.ts) - Guard de seguridad con API key
+- [src/scraping/scraping.service.ts](src/scraping/scraping.service.ts) - Servicio de ingesta (500+ líneas)
+- [src/scraping/scraping.controller.ts](src/scraping/scraping.controller.ts) - Controlador con endpoint POST
+- [src/scraping/scraping.module.ts](src/scraping/scraping.module.ts) - Módulo de scraping
+
+**Archivos modificados**:
+- [src/app.module.ts](src/app.module.ts) - Agregado ScrapingModule
+- [src/main.ts](src/main.ts) - Habilitado ValidationPipe global
+
+**Funcionalidades implementadas**:
+- Validaciones con class-validator: @IsString(), @IsNotEmpty(), @IsOptional(), @IsUrl(), @Matches(), @MaxLength()
+- Seguridad: ApiKeyGuard verifica header x-api-key contra N8N_API_KEY
+- Normalización automática de datos: parseTasa(), parseMonto(), parsePlazo(), normalizarTexto()
+- Resolución de catálogos: Mapeo de códigos n8n a UUIDs de PostgreSQL
+- Idempotencia: Usa id_unico para upsert de productos
+- Detección de cambios: Compara tasa_valor anterior vs nueva (tolerancia 0.01%)
+- Histórico completo: Cada ingesta inserta en tasas_historicas
+- Replace pattern: Elimina y recrea condiciones/requisitos/beneficios
+- Logging completo: Trazabilidad de todas las operaciones
+- Manejo de errores: BadRequestException para catálogos no encontrados
 
 ### 🧪 Día 6: Testing y Documentación
 - [ ] Tests E2E del endpoint de ingesta:
@@ -231,9 +539,9 @@ docker compose down
 
 ## 📊 Estado Actual del Proyecto
 
-**Fase**: Día 2 completado ✅
-**Progreso**: 2/7 días (29%)
-**Siguiente tarea**: Implementar CatalogosModule y CatalogosService (Día 3)
+**Fase**: Día 5 completado ✅
+**Progreso**: 5/7 días (71%)
+**Siguiente tarea**: Testing E2E y documentación Swagger (Día 6)
 
 ### Resumen del Día 2
 - ✅ 15 tablas creadas en PostgreSQL (14 entidades + migrations)
@@ -243,3 +551,43 @@ docker compose down
 - ✅ Modelo de datos alineado con formato de extracción n8n (22 columnas)
 - ✅ Tabla `productos_credito`: 17 columnas con constraints correctos
 - ✅ Tabla `tasas_vigentes`: Soporte para tasas únicas y rangos
+
+### Resumen del Día 3
+- ✅ CatalogosModule creado y registrado en AppModule
+- ✅ CatalogosService con 9 métodos implementados
+- ✅ 11 test suites (100% cobertura de métodos públicos)
+- ✅ Soporte para búsqueda por código y nombre normalizado
+- ✅ Pattern getOrCreate para creación idempotente de entidades
+- ✅ Logging integrado para debugging y auditoría
+
+### Resumen del Día 4
+- ✅ ProductosModule creado y registrado en AppModule
+- ✅ ProductosService con 18 métodos implementados (350 líneas)
+- ✅ 20+ test cases con mocks de 8 repositorios
+- ✅ CRUD completo para ProductoCredito
+- ✅ Gestión de TasaVigente con upsert pattern
+- ✅ Histórico de tasas con orden descendente
+- ✅ Upsert de MontoProducto
+- ✅ Replace pattern para arrays: Condiciones, Requisitos, Beneficios
+- ✅ Gestión de EjecucionScraping (registro y actualización)
+- ✅ Manejo de valores null → undefined con nullish coalescing
+- ✅ Logging contextual en todas las operaciones
+- ✅ Preparación para ScrapingModule (Día 5)
+
+### Resumen del Día 5
+- ✅ ScrapingModule creado e integrado con CatalogosModule y ProductosModule
+- ✅ N8nProductoDto con 22 campos validados usando class-validator
+- ✅ ValidationPipe global habilitado en main.ts
+- ✅ ApiKeyGuard implementado para seguridad con header x-api-key
+- ✅ ScrapingService con lógica completa de ingesta (500+ líneas):
+  - Normalización de datos con parsers de utilidades
+  - Resolución automática de catálogos (mapeo códigos → UUIDs)
+  - Idempotencia con id_unico_scraping
+  - Detección inteligente de cambios de tasa (tolerancia 0.01%)
+  - Upsert completo de producto, tasas, montos y relaciones
+  - Inserción en histórico de tasas
+  - Replace pattern para condiciones/requisitos/beneficios
+- ✅ ScrapingController con endpoint POST /api/scraping/ingest
+- ✅ Logging completo y trazabilidad de operaciones
+- ✅ Manejo robusto de errores con BadRequestException
+- ✅ Listo para recibir datos desde n8n en producción

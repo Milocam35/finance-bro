@@ -4,6 +4,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import configuration from './config/configuration';
+import { CatalogosModule } from './catalogos/catalogos.module';
+import { ProductosModule } from './productos/productos.module';
+import { ScrapingModule } from './scraping/scraping.module';
 
 // Importar entidades de catálogos
 import { EntidadFinanciera } from './catalogos/entities/entidad-financiera.entity';
@@ -64,6 +67,11 @@ import { EjecucionScraping } from './productos/entities/ejecucion-scraping.entit
       }),
       inject: [ConfigService],
     }),
+
+    // Módulos de negocio
+    CatalogosModule,
+    ProductosModule,
+    ScrapingModule,
   ],
   controllers: [AppController],
   providers: [AppService],
