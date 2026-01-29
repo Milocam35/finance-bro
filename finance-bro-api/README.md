@@ -508,17 +508,53 @@ npm install dotenv
 - Manejo de errores: BadRequestException para catálogos no encontrados
 
 ### 🧪 Día 6: Testing y Documentación
-- [ ] Tests E2E del endpoint de ingesta:
-  - [ ] Test sin API key (401)
-  - [ ] Test con API key inválida (401)
-  - [ ] Test crear nuevo producto (201)
-  - [ ] Test actualizar producto existente (201)
-  - [ ] Test detectar cambio de tasa
-  - [ ] Test validación de DTO (400)
+- [x] Tests E2E del endpoint de ingesta:
+  - [x] Test sin API key (401)
+  - [x] Test con API key inválida (401)
+  - [x] Test crear nuevo producto con todos los parámetros (201)
+  - [x] Test actualizar producto existente (201)
+  - [x] Test detectar cambio de tasa
+  - [x] Test validación de DTO (400)
+  - [x] Test producto con campos opcionales vacíos
 - [ ] Configurar Swagger/OpenAPI
 - [ ] Documentar endpoint con decoradores
 - [ ] Generar documentación en `/api/docs`
 - [ ] Crear ejemplos de request/response
+
+**Archivos creados**:
+- [test/scraping.e2e-spec.ts](test/scraping.e2e-spec.ts) - Suite completa de tests E2E (500+ líneas, 7 casos de prueba)
+
+**Archivos modificados**:
+- [src/scraping/scraping.service.ts](src/scraping/scraping.service.ts) - Agregada validación para no insertar en histórico si tasa_valor es null, conversión de tasa_anterior a número
+- [src/common/utils/parsers.util.ts](src/common/utils/parsers.util.ts) - Mejorado parseMonto() para manejar formato colombiano con puntos como separadores de miles
+
+**Tests implementados** (7/7 ✅):
+1. ✅ **Autenticación sin API key (401)**: Verifica que el endpoint rechaza requests sin header x-api-key
+2. ✅ **Autenticación con API key inválida (401)**: Verifica que el endpoint rechaza requests con API key incorrecta
+3. ✅ **Crear producto completo (201)**: Crea un producto con todos los 22 campos y verifica:
+   - Producto creado con todos los campos
+   - Entidad financiera creada/encontrada
+   - Tasa vigente creada correctamente
+   - Tasa insertada en histórico
+   - Montos guardados correctamente
+   - 3 condiciones creadas en orden
+   - 4 requisitos creados en orden
+   - 2 beneficios creados (descuento nómina + avalúo)
+4. ✅ **Actualizar producto existente (201)**: Verifica idempotencia con id_unico_scraping
+5. ✅ **Detectar cambio de tasa**: Verifica detección de cambio cuando tasa varía ≥ 0.01%
+6. ✅ **Validación de DTO (400)**: Verifica que ValidationPipe rechaza payloads inválidos
+7. ✅ **Producto con campos opcionales vacíos**: Verifica que se puede crear producto sin tasas, montos, condiciones, requisitos ni beneficios
+
+**Correcciones realizadas**:
+- Arreglado import de `normalizeString` (antes `normalizarTexto`)
+- Cambiado `delete({})` a `clear()` y luego a queries SQL directas para cleanup entre tests
+- Agregada validación para no insertar en `tasas_historicas` si `tasa_valor` es null
+- Conversión de tipos BIGINT y DECIMAL de PostgreSQL (devueltos como strings) a números en tests
+- Mejorado `parseMonto()` para eliminar puntos como separadores de miles (formato colombiano)
+- Manejo flexible de fechas para evitar problemas de timezone
+- Ordenamiento de histórico por `created_at` DESC en lugar de solo `fecha_extraccion`
+
+**Cobertura de tests**: 100% de los casos críticos del endpoint de ingesta
 
 ### 🚀 Día 7: Integración n8n y Deploy
 - [ ] Modificar workflow de n8n:
@@ -539,9 +575,9 @@ npm install dotenv
 
 ## 📊 Estado Actual del Proyecto
 
-**Fase**: Día 5 completado ✅
-**Progreso**: 5/7 días (71%)
-**Siguiente tarea**: Testing E2E y documentación Swagger (Día 6)
+**Fase**: Día 6 en progreso (Tests E2E ✅, falta Swagger)
+**Progreso**: 5.5/7 días (79%)
+**Siguiente tarea**: Documentación Swagger (Día 6) → Integración n8n (Día 7)
 
 ### Resumen del Día 2
 - ✅ 15 tablas creadas en PostgreSQL (14 entidades + migrations)
@@ -591,3 +627,16 @@ npm install dotenv
 - ✅ Logging completo y trazabilidad de operaciones
 - ✅ Manejo robusto de errores con BadRequestException
 - ✅ Listo para recibir datos desde n8n en producción
+
+### Resumen del Día 6 (En progreso)
+- ✅ Suite completa de tests E2E del endpoint de ingesta (7 casos de prueba)
+- ✅ Test de autenticación (sin API key y con API key inválida)
+- ✅ Test de creación de producto completo con todos los parámetros (22 campos)
+- ✅ Test de actualización de producto existente (idempotencia)
+- ✅ Test de detección de cambio de tasa
+- ✅ Test de validación de DTO con class-validator
+- ✅ Test de producto con campos opcionales vacíos
+- ✅ Correcciones en parsers (manejo de formato colombiano con puntos)
+- ✅ Conversión de tipos PostgreSQL (BIGINT/DECIMAL → number)
+- ✅ Cleanup de datos entre tests con queries SQL directas
+- ⏳ Pendiente: Documentación Swagger/OpenAPI

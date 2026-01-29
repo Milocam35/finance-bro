@@ -6,7 +6,7 @@ import {
   parseTasa,
   parseMonto,
   parsePlazo,
-  normalizarTexto,
+  normalizeString,
 } from '../common/utils/parsers.util';
 
 @Injectable()
@@ -89,7 +89,7 @@ export class ScrapingService {
 
     // ==================== PASO 6: DETECCIÓN DE CAMBIO DE TASA ====================
     const tasaAnterior = await this.productosService.getTasaVigente(producto.id);
-    const tasaAnteriorValor = tasaAnterior?.tasa_valor || null;
+    const tasaAnteriorValor = tasaAnterior?.tasa_valor ? parseFloat(String(tasaAnterior.tasa_valor)) : null;
 
     const tasaNueva = datosNormalizados.tasas;
     let cambioTasa = false;
@@ -115,12 +115,15 @@ export class ScrapingService {
     });
 
     // ==================== PASO 8: INSERTAR EN HISTÓRICO DE TASAS ====================
-    await this.productosService.insertTasaHistorica({
-      producto_id: producto.id,
-      tasa_valor: tasaNueva.tasa_valor,
-      fecha_extraccion: new Date(dto.fecha_extraccion),
-      hora_extraccion: dto.hora_extraccion,
-    });
+    // Solo insertar en histórico si hay tasa_valor (no null)
+    if (tasaNueva.tasa_valor !== null) {
+      await this.productosService.insertTasaHistorica({
+        producto_id: producto.id,
+        tasa_valor: tasaNueva.tasa_valor,
+        fecha_extraccion: new Date(dto.fecha_extraccion),
+        hora_extraccion: dto.hora_extraccion,
+      });
+    }
 
     // ==================== PASO 9: UPSERT DE MONTOS ====================
     const montos = datosNormalizados.montos;
@@ -223,7 +226,7 @@ export class ScrapingService {
     };
   } {
     // Normalizar nombre del banco
-    const nombre_normalizado = normalizarTexto(dto.banco);
+    const nombre_normalizado = normalizeString(dto.banco);
 
     // Parsear tasas
     let tasa_valor: number | null = null;

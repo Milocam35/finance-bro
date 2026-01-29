@@ -7,7 +7,8 @@
 export function parseMonto(monto?: string): number | null {
   if (!monto) return null;
 
-  const cleaned = monto.replace(/[$,\s]/g, '');
+  // Eliminar $, comas, puntos y espacios (separadores de miles en formato colombiano)
+  const cleaned = monto.replace(/[$,.\s]/g, '');
 
   if (cleaned.endsWith('M')) {
     return parseFloat(cleaned.replace('M', '')) * 1_000_000;
