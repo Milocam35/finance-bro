@@ -61,11 +61,11 @@ export class ScrapingService {
         tipo_vivienda_id: catalogos.tipoViviendaId,
         denominacion_id: catalogos.denominacionId,
         tipo_tasa_id: catalogos.tipoTasaId,
-        tipo_pago_id: catalogos.tipoPagoId,
+        tipo_pago_id: catalogos.tipoPagoId ?? undefined,
         descripcion: dto.descripcion,
         url_extraccion: dto.url_pagina,
         url_redireccion: dto.url_pagina,
-        url_pdf: dto.url_pdf || null,
+        url_pdf: dto.url_pdf || undefined,
         fecha_extraccion: new Date(dto.fecha_extraccion),
         hora_extraccion: dto.hora_extraccion,
         activo: true,
@@ -78,7 +78,7 @@ export class ScrapingService {
         descripcion: dto.descripcion,
         url_extraccion: dto.url_pagina,
         url_redireccion: dto.url_pagina,
-        url_pdf: dto.url_pdf || null,
+        url_pdf: dto.url_pdf || undefined,
         fecha_extraccion: new Date(dto.fecha_extraccion),
         hora_extraccion: dto.hora_extraccion,
       });
@@ -106,10 +106,10 @@ export class ScrapingService {
 
     // ==================== PASO 7: UPSERT DE TASA VIGENTE ====================
     await this.productosService.updateTasaVigente(producto.id, {
-      tasa_valor: tasaNueva.tasa_valor,
-      tasa_texto_original: dto.tasa || null,
-      tasa_minima: tasaNueva.tasa_minima,
-      tasa_maxima: tasaNueva.tasa_maxima,
+      tasa_valor: tasaNueva.tasa_valor ?? undefined,
+      tasa_texto_original: dto.tasa || undefined,
+      tasa_minima: tasaNueva.tasa_minima ?? undefined,
+      tasa_maxima: tasaNueva.tasa_maxima ?? undefined,
       es_rango: tasaNueva.es_rango,
       fecha_vigencia: new Date(dto.fecha_extraccion),
     });
@@ -129,12 +129,10 @@ export class ScrapingService {
     const montos = datosNormalizados.montos;
     if (montos.monto_minimo || montos.monto_maximo || montos.plazo_maximo_meses) {
       await this.productosService.upsertMontos(producto.id, {
-        monto_minimo: montos.monto_minimo,
-        monto_maximo: montos.monto_maximo,
-        plazo_minimo_meses: null,
-        plazo_maximo_meses: montos.plazo_maximo_meses,
-        porcentaje_financiacion_min: null,
-        porcentaje_financiacion_max: null,
+        monto_minimo: montos.monto_minimo ?? undefined,
+        monto_maximo: montos.monto_maximo ?? undefined,
+        plazo_minimo_meses: undefined,
+        plazo_maximo_meses: montos.plazo_maximo_meses ?? undefined,
       });
     }
 
@@ -171,7 +169,12 @@ export class ScrapingService {
     }
 
     // ==================== PASO 12: REEMPLAZAR BENEFICIOS ====================
-    const beneficios = [];
+    const beneficios: Array<{
+      tipo_beneficio: string;
+      descripcion: string;
+      valor: string | null;
+      aplica_condicion: string | null;
+    }> = [];
 
     if (dto.descuento_nomina && dto.descuento_nomina.trim()) {
       beneficios.push({
@@ -203,8 +206,8 @@ export class ScrapingService {
       producto_id: producto.id,
       accion,
       cambio_tasa: cambioTasa,
-      tasa_anterior: tasaAnteriorValor,
-      tasa_nueva: tasaNueva.tasa_valor,
+      tasa_anterior: tasaAnteriorValor ?? undefined,
+      tasa_nueva: tasaNueva.tasa_valor ?? undefined,
     };
   }
 
