@@ -23,6 +23,12 @@ export class TasaHistorica {
   @Column({ type: 'decimal', precision: 5, scale: 2 })
   tasa_valor: number;
 
+  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
+  tasa_final: number;
+
+  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
+  uvr_variacion_anual: number;
+
   @Column({ type: 'date' })
   fecha_extraccion: Date;
 

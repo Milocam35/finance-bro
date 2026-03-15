@@ -24,6 +24,12 @@ export class TasaVigente {
   @Column({ type: 'varchar', length: 50, nullable: true })
   tasa_texto_original: string;
 
+  @Column({type: 'decimal', precision: 5, scale: 2, nullable: true })
+  tasa_final: number;
+
+  @Column({type: 'decimal', precision: 5, scale: 2, nullable: true })
+  uvr_variacion_anual: number;
+
   @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
   tasa_minima: number;
 

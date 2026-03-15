@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ProductosService } from './productos.service';
+import { ProductosController } from './productos.controller';
 import { ProductoCredito } from './entities/producto-credito.entity';
 import { TasaVigente } from './entities/tasa-vigente.entity';
 import { TasaHistorica } from './entities/tasa-historica.entity';
@@ -9,6 +10,7 @@ import { CondicionProducto } from './entities/condicion-producto.entity';
 import { RequisitoProducto } from './entities/requisito-producto.entity';
 import { BeneficioProducto } from './entities/beneficio-producto.entity';
 import { EjecucionScraping } from './entities/ejecucion-scraping.entity';
+import { CatalogosModule } from '../catalogos/catalogos.module';
 
 @Module({
   imports: [
@@ -22,7 +24,9 @@ import { EjecucionScraping } from './entities/ejecucion-scraping.entity';
       BeneficioProducto,
       EjecucionScraping,
     ]),
+    CatalogosModule, // Importar para resolver nombres normalizados
   ],
+  controllers: [ProductosController], // Registrar controller
   providers: [ProductosService],
   exports: [ProductosService], // Exportamos para usar en ScrapingModule
 })

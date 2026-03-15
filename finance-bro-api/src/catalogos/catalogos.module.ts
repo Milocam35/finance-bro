@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CatalogosService } from './catalogos.service';
+import { CatalogosController } from './catalogos.controller';
 import { EntidadFinanciera } from './entities/entidad-financiera.entity';
 import { TipoCredito } from './entities/tipo-credito.entity';
 import { TipoVivienda } from './entities/tipo-vivienda.entity';
@@ -19,6 +20,7 @@ import { TipoPago } from './entities/tipo-pago.entity';
       TipoPago,
     ]),
   ],
+  controllers: [CatalogosController],
   providers: [CatalogosService],
   exports: [CatalogosService], // Exportamos para usar en ScrapingModule
 })

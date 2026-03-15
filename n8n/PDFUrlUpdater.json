@@ -1,0 +1,569 @@
+{
+  "name": "PDFUrlUpdater_AIAgent_Batched",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 5 1,15 * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        3536,
+        2592
+      ],
+      "id": "9bd65681-121a-4e60-8a5d-49fb890dda4d",
+      "name": "Bi-Monthly 5AM Bogota"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        3536,
+        2384
+      ],
+      "id": "bdb4ef43-ecca-451f-85f6-510227d67666",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1yUR0Tow3yrbSemyzmsqDY4VoF113wrxfCwVDhSTOsoM",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "LinksVivienda",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3776,
+        2496
+      ],
+      "id": "b5ae1080-c2fe-4e9b-9aef-f2031a150813",
+      "name": "Read All Banks",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "rWJE0ntmYwzYmIeB",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// Filtra bancos activos y los divide en grupos de 1\n// para esperar 30s entre cada banco (rate limit)\n// ============================================\n\nconst items = $input.all();\n\nconst active = items.filter(item => {\n  const v = item.json.activo;\n  return v === true || v === 'TRUE' || v === 'true' || v === 'SI' || v === 'Sí';\n});\n\nif (active.length === 0) throw new Error('No hay bancos activos en el Sheets.');\n\nconst BATCH_SIZE = 1;\nconst batches = [];\n\nfor (let i = 0; i < active.length; i += BATCH_SIZE) {\n  const chunk = active.slice(i, i + BATCH_SIZE).map(item => ({\n    banco:         item.json.banco         || '',\n    url:           item.json.url           || '',\n    pdf_url:       item.json.pdf_url       || '',\n    target_url:    item.json.target_url    || '',\n    tipo_producto: item.json.tipo_producto || '',\n    activo:        item.json.activo,\n  }));\n\n  batches.push({\n    json: {\n      batch_index:   i + 1,\n      total_batches: active.length,\n      banks:         chunk,\n      banks_csv:     chunk.map(b =>\n        `banco: ${b.banco} | url: ${b.url} | pdf_url: ${b.pdf_url}`\n      ).join('\\n'),\n    }\n  });\n}\n\nconsole.log(`${active.length} bancos activos → ${batches.length} lotes de 1`);\nreturn batches;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3984,
+        2496
+      ],
+      "id": "0809e0a2-4e1e-46fd-8a57-f41c7e04f6bf",
+      "name": "Split Into Batches of 1"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 1,
+      "position": [
+        4176,
+        2496
+      ],
+      "id": "ca0fdf88-fe7a-46fd-bdac-4d029767f2ca",
+      "name": "One Bank at a Time"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// Construye el mensaje del agente con valores reales\n// resolviendo todas las expresiones antes de Claude\n// ============================================\n\nconst item = $input.first().json;\n\n// Fecha en hora Bogotá\nconst now = new Date();\nconst bogota = new Date(now.toLocaleString('en-US', { timeZone: 'America/Bogota' }));\n\nconst pad = n => String(n).padStart(2, '0');\nconst meses = ['enero','febrero','marzo','abril','mayo','junio',\n               'julio','agosto','septiembre','octubre','noviembre','diciembre'];\n\nconst year  = bogota.getFullYear();\nconst month = bogota.getMonth(); // 0-indexed\n\nconst prevMonth = month === 0 ? 11 : month - 1;\nconst prevYear  = month === 0 ? year - 1 : year;\n\nconst mesActualMin   = meses[month];\nconst mesActualTitle = mesActualMin.charAt(0).toUpperCase() + mesActualMin.slice(1);\nconst mesActualUp    = mesActualMin.toUpperCase();\nconst mesNumero      = pad(month + 1);\nconst mesAntMin      = meses[prevMonth];\nconst mesAntUp       = mesAntMin.toUpperCase();\nconst mesAntNumero   = pad(prevMonth + 1);\nconst fechaHoy       = `${pad(bogota.getDate())}/${mesNumero}/${year}`;\n\n// banks_csv viene del nodo anterior (One Bank at a Time → Split Into Batches of 1)\nconst banksCSV   = item.banks_csv   || '';\nconst batchIndex = item.batch_index || 1;\nconst totalBatch = item.total_batches || 1;\n\nconst prompt = `Procesa el siguiente banco (banco ${batchIndex} de ${totalBatch}):\n\n${banksCSV}\n\nParámetros de fecha (hora Bogotá):\n- Fecha hoy: ${fechaHoy}\n- Mes actual (minúsculas): ${mesActualMin}\n- Mes actual (Title Case): ${mesActualTitle}\n- Mes actual (MAYÚSCULAS): ${mesActualUp}\n- Mes número con cero: ${mesNumero}\n- Año actual: ${year}\n- Mes anterior (minúsculas): ${mesAntMin}\n- Mes anterior (MAYÚSCULAS): ${mesAntUp}\n- Mes anterior número: ${mesAntNumero}`;\n\nreturn {\n  json: {\n    ...item,\n    resolved_prompt: prompt,\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4400,
+        2496
+      ],
+      "id": "6aea91d2-d968-4a09-8171-dba9a7099c19",
+      "name": "Build Resolved Prompt"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.resolved_prompt }}",
+        "options": {
+          "systemMessage": "Eres un agente especializado en mantener actualizadas las URLs de PDFs de tasas de crédito hipotecario de bancos colombianos.\n\nRecibirás un lote pequeño de bancos (máximo 3) con sus datos actuales. Tu trabajo es procesar SOLO esos bancos.\n\nPara cada banco del lote:\n1. Analiza la pdf_url actual para entender el patrón de naming (mes, año, versión, número, etc.)\n2. Infiere la URL del mes actual basándote en ese patrón\n3. Verifica si la URL candidata es accesible usando la tool httpRequest con método HEAD\n4. Si responde HTTP 200/206 y es diferente a la actual → actualiza pdf_url en el Sheets con la tool googleSheets\n5. Si no responde o es la misma → no actualices nada\n\nREGLAS:\n- Procesa los bancos en orden, uno a la vez\n- Solo actualiza la columna pdf_url, nunca las demás columnas\n- Nunca inventes URLs — solo actualiza si el HEAD request devolvió 200 o 206\n- URLs de Google Drive → déjalas como están, no se pueden verificar\n- URLs estáticas sin fecha → solo valida que sigan activas\n- Si hay varios candidatos (sufijo -1, -2, -3...), pruébalos en orden\n\nPATRONES COMUNES:\n- /YYYY/MM/TASAS-MES-YYYY-N.pdf → probar N=1,2,3,4,5,6\n- /tasas-mes-yyyy → reemplazar mes y año en minúsculas\n- /Actualizacion_tasas_Mes_YYYY.pdf → mes con mayúscula inicial\n- /TASAS-DD-DE-MES-DE-YYYY.pdf → probar días del 28 al 1\n- /Tarifario-YYYY-La-Hipotecaria-Colombia-N.pdf → probar N=1..8\n- /Tasas+Activas+DD+Mes+YYYYvN.pdf → día y versión\n\nFORMATO DE REPORTE (al terminar el lote):\n✅ [banco] → [nueva URL]\n➖ [banco] → sin cambios (URL vigente)\n❌ [banco] → no encontrado (URL original conservada)",
+          "maxIterations": 30,
+          "returnIntermediateSteps": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        4624,
+        2496
+      ],
+      "id": "d7716e2a-bdaf-4500-a688-60f2ba0087af",
+      "name": "Claude PDF URL Agent"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Lee todos los registros de la pestaña Links del Google Sheets BankScrappedData. Úsala para obtener la lista completa de bancos con sus URLs actuales. No requiere parámetros.",
+        "documentId": {
+          "__rl": true,
+          "value": "1yUR0Tow3yrbSemyzmsqDY4VoF113wrxfCwVDhSTOsoM",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 186450182,
+          "mode": "list",
+          "cachedResultName": "LinksVivienda",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1yUR0Tow3yrbSemyzmsqDY4VoF113wrxfCwVDhSTOsoM/edit#gid=186450182"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        4656,
+        2736
+      ],
+      "id": "8677dbb8-f185-4f36-8971-8d8bbd383fc5",
+      "name": "Tool: Read Sheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "rWJE0ntmYwzYmIeB",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Actualiza la pdf_url de un banco específico en el Google Sheets. Úsala cuando hayas verificado que existe una URL nueva válida. Parámetros: banco (nombre exacto del banco como aparece en el Sheets), pdf_url (la nueva URL del PDF verificada).",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1yUR0Tow3yrbSemyzmsqDY4VoF113wrxfCwVDhSTOsoM",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "LinksVivienda",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "url": "={{ $fromAI('url', 'URL principal del banco', 'string') }}",
+            "pdf_url": "={{ $fromAI('pdf_url', 'Nueva URL del PDF verificada', 'string') }}",
+            "banco": "={{ $fromAI('banco', 'Nombre exacto del banco', 'string') }}"
+          },
+          "matchingColumns": [
+            "banco"
+          ],
+          "schema": [
+            {
+              "id": "banco",
+              "displayName": "banco",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "url",
+              "displayName": "url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "pdf_url",
+              "displayName": "pdf_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "target_url",
+              "displayName": "target_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tipo_producto",
+              "displayName": "tipo_producto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "activo",
+              "displayName": "activo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        4816,
+        2736
+      ],
+      "id": "d7f64984-b053-4f9d-819b-3c638a1db362",
+      "name": "Tool: Update Sheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "rWJE0ntmYwzYmIeB",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Verifica si una URL de PDF es accesible haciendo una petición HEAD. Devuelve el status HTTP. Úsala para validar URLs candidatas antes de actualizar el Sheets. Parámetro: url (la URL completa a verificar).",
+        "method": "HEAD",
+        "url": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('url', 'URL completa del PDF a verificar', 'string') }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\"User-Agent\": \"Mozilla/5.0 (compatible; URLChecker/1.0)\", \"Accept\": \"*/*\"}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        4976,
+        2736
+      ],
+      "id": "de4808b8-b4b7-4a43-ad4d-cdecde9a606b",
+      "name": "Tool: Verify URL",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1yUR0Tow3yrbSemyzmsqDY4VoF113wrxfCwVDhSTOsoM",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "URL_Update_Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "fecha_ejecucion": "={{ $now.setZone('America/Bogota').toFormat('yyyy-MM-dd') }}",
+            "hora_ejecucion": "={{ $now.setZone('America/Bogota').toFormat('HH:mm') }}",
+            "reporte": "={{ $json.output }}",
+            "batch": "={{ $json.batch_index ?? '' }}"
+          },
+          "schema": [
+            {
+              "id": "fecha_ejecucion",
+              "displayName": "fecha_ejecucion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "hora_ejecucion",
+              "displayName": "hora_ejecucion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "reporte",
+              "displayName": "reporte",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4896,
+        2496
+      ],
+      "id": "895c1a30-73c8-4d17-8d46-ad645ca26135",
+      "name": "Write Log",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "rWJE0ntmYwzYmIeB",
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "amount": 30
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        5088,
+        2496
+      ],
+      "id": "71f778eb-7d96-44b1-ba5b-2559e596c2d0",
+      "name": "Wait 30s Between Banks",
+      "webhookId": "pdf-url-wait"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-sonnet-4-6",
+          "mode": "list",
+          "cachedResultName": "Claude Sonnet 4.6"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        4496,
+        2704
+      ],
+      "id": "264bc4fc-a84b-454b-a621-797f37b49823",
+      "name": "Anthropic Chat Model",
+      "credentials": {
+        "anthropicApi": {
+          "id": "BF2PE213gsA2zxzG",
+          "name": "Anthropic account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Bi-Monthly 5AM Bogota": {
+      "main": [
+        [
+          {
+            "node": "Read All Banks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read All Banks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read All Banks": {
+      "main": [
+        [
+          {
+            "node": "Split Into Batches of 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Into Batches of 1": {
+      "main": [
+        [
+          {
+            "node": "One Bank at a Time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One Bank at a Time": {
+      "main": [
+        [
+          {
+            "node": "Build Resolved Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Resolved Prompt": {
+      "main": [
+        [
+          {
+            "node": "Claude PDF URL Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude PDF URL Agent": {
+      "main": [
+        [
+          {
+            "node": "Write Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Log": {
+      "main": [
+        [
+          {
+            "node": "Wait 30s Between Banks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 30s Between Banks": {
+      "main": [
+        [
+          {
+            "node": "One Bank at a Time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Read Sheets": {
+      "ai_tool": [
+        [
+          {
+            "node": "Claude PDF URL Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Update Sheets": {
+      "ai_tool": [
+        [
+          {
+            "node": "Claude PDF URL Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Verify URL": {
+      "ai_tool": [
+        [
+          {
+            "node": "Claude PDF URL Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Claude PDF URL Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "timezone": "America/Bogota",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "availableInMCP": false
+  },
+  "versionId": "d4d17c7b-a34d-4780-85bc-f827dd901cc2",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1618e2f459f31c8fc5b2c8230db6ae5636ce6f0cb05a8124de87b1bf1e2d6588"
+  },
+  "tags": []
+}

@@ -132,11 +132,11 @@ export function Hero() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
-            className="text-5xl md:text-6xl lg:text-7xl font-bold text-white leading-tight mb-6"
+            className="text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-tight mb-6"
           >
-            Encuentra el crédito
+            Encuentra el producto financiero
             <br />
-            <span className="text-[#FFD60A]">perfecto para ti</span>
+            <span className="text-[#FFD60A]">ideal para ti</span>
           </motion.h1>
 
           <motion.p

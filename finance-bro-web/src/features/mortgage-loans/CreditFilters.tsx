@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { SlidersHorizontal, DollarSign, Calendar, Percent, Info, Home, ArrowUpDown } from "lucide-react";
+import { DollarSign, Calendar, Home, Banknote, ArrowUpDown, Info, RotateCcw } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -14,7 +13,6 @@ import {
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
@@ -27,26 +25,28 @@ export interface FilterState {
   amount: number;
   term: number;
   propertyType: string;
-  housingType?: string; // VIS, No VIS, o todos
-  denomination?: string; // Pesos, UVR, o todos
+  housingType?: string;
+  denomination?: string;
   sortBy: string;
 }
 
-const MIN_AMOUNT = 20000000; // 20 millones
-const MAX_AMOUNT = 10000000000; // 10 mil millones
-const MIN_TERM = 5; // 5 años
-const MAX_TERM = 30; // 30 años
+const MIN_AMOUNT = 20000000;
+const MAX_AMOUNT = 10000000000;
+const MIN_TERM = 5;
+const MAX_TERM = 30;
+
+const DEFAULT_FILTERS: FilterState = {
+  amount: 200000000,
+  term: 20,
+  propertyType: "all",
+  housingType: "all",
+  denomination: "all",
+  sortBy: "rate",
+};
 
 export function CreditFilters({ onFilterChange }: CreditFiltersProps) {
   const { toast } = useToast();
-  const [filters, setFilters] = useState<FilterState>({
-    amount: 200000000,
-    term: 20,
-    propertyType: "all",
-    housingType: "all",
-    denomination: "all",
-    sortBy: "rate",
-  });
+  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [amountInput, setAmountInput] = useState<string>("200000000");
   const [termInput, setTermInput] = useState<string>("20");
 
@@ -57,34 +57,20 @@ export function CreditFilters({ onFilterChange }: CreditFiltersProps) {
   };
 
   const handleAmountInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\D/g, ""); // Solo números
+    const value = e.target.value.replace(/\D/g, "");
     setAmountInput(value);
   };
 
   const handleAmountInputBlur = () => {
     const numValue = parseInt(amountInput) || MIN_AMOUNT;
-
-    // Validar rango
     let validatedValue = numValue;
-    let showAlert = false;
-    let alertMessage = "";
 
     if (numValue < MIN_AMOUNT) {
       validatedValue = MIN_AMOUNT;
-      showAlert = true;
-      alertMessage = `El monto mínimo permitido es ${formatCurrency(MIN_AMOUNT)}. Se ajustó automáticamente al mínimo.`;
+      toast({ title: "Monto ajustado", description: `El monto mínimo es ${formatCurrency(MIN_AMOUNT)}.`, variant: "destructive" });
     } else if (numValue > MAX_AMOUNT) {
       validatedValue = MAX_AMOUNT;
-      showAlert = true;
-      alertMessage = `El monto máximo permitido es ${formatCurrency(MAX_AMOUNT)}. Se ajustó automáticamente al máximo.`;
-    }
-
-    if (showAlert) {
-      toast({
-        title: "Monto ajustado",
-        description: alertMessage,
-        variant: "destructive",
-      });
+      toast({ title: "Monto ajustado", description: `El monto máximo es ${formatCurrency(MAX_AMOUNT)}.`, variant: "destructive" });
     }
 
     setAmountInput(validatedValue.toString());
@@ -97,34 +83,20 @@ export function CreditFilters({ onFilterChange }: CreditFiltersProps) {
   };
 
   const handleTermInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\D/g, ""); // Solo números
+    const value = e.target.value.replace(/\D/g, "");
     setTermInput(value);
   };
 
   const handleTermInputBlur = () => {
     const numValue = parseInt(termInput) || MIN_TERM;
-
-    // Validar rango
     let validatedValue = numValue;
-    let showAlert = false;
-    let alertMessage = "";
 
     if (numValue < MIN_TERM) {
       validatedValue = MIN_TERM;
-      showAlert = true;
-      alertMessage = `El plazo mínimo permitido es ${MIN_TERM} años. Se ajustó automáticamente al mínimo.`;
+      toast({ title: "Plazo ajustado", description: `El plazo mínimo es ${MIN_TERM} años.`, variant: "destructive" });
     } else if (numValue > MAX_TERM) {
       validatedValue = MAX_TERM;
-      showAlert = true;
-      alertMessage = `El plazo máximo permitido es ${MAX_TERM} años. Se ajustó automáticamente al máximo.`;
-    }
-
-    if (showAlert) {
-      toast({
-        title: "Plazo ajustado",
-        description: alertMessage,
-        variant: "destructive",
-      });
+      toast({ title: "Plazo ajustado", description: `El plazo máximo es ${MAX_TERM} años.`, variant: "destructive" });
     }
 
     setTermInput(validatedValue.toString());
@@ -135,6 +107,19 @@ export function CreditFilters({ onFilterChange }: CreditFiltersProps) {
     setTermInput(value.toString());
     handleChange("term", value);
   };
+
+  const handleReset = () => {
+    setFilters(DEFAULT_FILTERS);
+    setAmountInput("200000000");
+    setTermInput("20");
+    onFilterChange(DEFAULT_FILTERS);
+  };
+
+  const isFiltersModified =
+    filters.housingType !== "all" ||
+    filters.denomination !== "all" ||
+    filters.amount !== 200000000 ||
+    filters.term !== 20;
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("es-CO", {
@@ -159,236 +144,292 @@ export function CreditFilters({ onFilterChange }: CreditFiltersProps) {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.5 }}
-      className="bg-card rounded-2xl p-6 lg:p-8 card-elevated border border-border"
+      className="relative overflow-hidden rounded-2xl border border-secondary/15 bg-gradient-to-br from-card via-card to-secondary/[0.03] shadow-[var(--card-shadow)]"
     >
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-lg bg-[#0466C8]/10 flex items-center justify-center">
-          <SlidersHorizontal className="w-5 h-5 text-[#0466C8]" />
-        </div>
-        <div>
-          <h3 className="font-semibold text-foreground">Personaliza tu búsqueda</h3>
-          <p className="text-sm text-muted-foreground">
-            Ajusta los filtros para encontrar el crédito ideal
-          </p>
-        </div>
-      </div>
+      {/* Top accent line */}
+      <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-secondary to-transparent opacity-40" />
 
-      <div className="grid gap-6 lg:grid-cols-5">
-        {/* Amount Slider with Input */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
+      {/* Subtle background pattern */}
+      <div className="absolute inset-0 opacity-[0.015]" style={{
+        backgroundImage: `radial-gradient(circle at 1px 1px, hsl(var(--secondary)) 1px, transparent 0)`,
+        backgroundSize: '24px 24px',
+      }} />
+
+      <div className="relative p-6 lg:p-8">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="w-10 h-10 rounded-xl bg-foreground flex items-center justify-center shadow-lg shadow-foreground/20">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                  <rect x="2" y="4" width="6" height="2" rx="1" fill="hsl(var(--accent))" />
+                  <rect x="2" y="9" width="10" height="2" rx="1" fill="hsl(var(--accent))" opacity="0.7" />
+                  <rect x="2" y="14" width="14" height="2" rx="1" fill="hsl(var(--accent))" opacity="0.4" />
+                  <circle cx="15" cy="5" r="3" fill="hsl(var(--secondary))" />
+                  <circle cx="17" cy="10" r="2" fill="hsl(var(--secondary))" opacity="0.6" />
+                </svg>
+              </div>
+            </div>
+            <div>
+              <h3 className="font-semibold text-foreground text-base tracking-tight">
+                Personaliza tu búsqueda
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Filtra entre las opciones disponibles
+              </p>
+            </div>
+          </div>
+          {isFiltersModified && (
+            <motion.button
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              onClick={handleReset}
+              className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-secondary transition-colors px-3 py-1.5 rounded-lg hover:bg-secondary/5"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Restablecer
+            </motion.button>
+          )}
+        </div>
+
+        {/* === ROW 1: Quick toggle filters === */}
+        <div className="grid gap-6 lg:grid-cols-3 mb-8">
+          {/* Housing Type - Toggle Pills */}
+          <div className="space-y-3">
             <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <DollarSign className="w-4 h-4 text-muted-foreground" />
-              Monto del crédito
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="cursor-help">
-                      <Info className="w-4 h-4 text-muted-foreground hover:text-[#0466C8] transition-colors" />
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p className="text-sm">
-                      <strong>Monto ideal en Colombia:</strong> Para vivienda VIS (Vivienda de Interés Social),
-                      el monto típico está entre $50M y $150M. Para vivienda No VIS, entre $150M y $500M.
-                      El rango completo permite desde $20M hasta $10.000M para casos especiales.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </label>
-            <span className="text-sm font-semibold text-[#0466C8]">
-              {formatCurrency(filters.amount)}
-            </span>
-          </div>
-
-          {/* Input de texto editable */}
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
-              $
-            </span>
-            <Input
-              type="text"
-              value={formatInputCurrency(amountInput)}
-              onChange={handleAmountInputChange}
-              onBlur={handleAmountInputBlur}
-              className="pl-7 text-sm font-medium"
-              placeholder="Ingrese el monto"
-            />
-          </div>
-
-          <Slider
-            value={[filters.amount]}
-            onValueChange={([value]) => handleSliderChange(value)}
-            min={MIN_AMOUNT}
-            max={MAX_AMOUNT}
-            step={10000000}
-            className="py-2"
-          />
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>$20M</span>
-            <span>$10.000M</span>
-          </div>
-        </div>
-
-        {/* Term Slider with Input */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <Calendar className="w-4 h-4 text-muted-foreground" />
-              Plazo (años)
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="cursor-help">
-                      <Info className="w-4 h-4 text-muted-foreground hover:text-[#0466C8] transition-colors" />
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p className="text-sm">
-                      <strong>Plazo ideal en Colombia:</strong> Los plazos más comunes son entre 10 y 20 años.
-                      Plazos más cortos (5-10 años) tienen cuotas más altas pero menos intereses totales.
-                      Plazos más largos (20-30 años) reducen la cuota mensual pero aumentan el costo total del crédito.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </label>
-            <span className="text-sm font-semibold text-[#0466C8]">
-              {filters.term} años
-            </span>
-          </div>
-
-          {/* Input de texto editable */}
-          <div className="relative">
-            <Input
-              type="text"
-              value={termInput}
-              onChange={handleTermInputChange}
-              onBlur={handleTermInputBlur}
-              className="text-sm font-medium pr-16"
-              placeholder="Ingrese el plazo"
-            />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
-              años
-            </span>
-          </div>
-
-          <Slider
-            value={[filters.term]}
-            onValueChange={([value]) => handleTermSliderChange(value)}
-            min={MIN_TERM}
-            max={MAX_TERM}
-            step={1}
-            className="py-2"
-          />
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>5 años</span>
-            <span>30 años</span>
-          </div>
-        </div>
-
-        {/* Housing Type (VIS/No VIS) */}
-        <div className="space-y-3">
-          <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-            <Home className="w-4 h-4 text-muted-foreground" />
-            Tipo de vivienda
-            <TooltipProvider>
+              <Home className="w-4 h-4 text-secondary" />
+              Tipo de vivienda
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div className="cursor-help">
-                    <Info className="w-4 h-4 text-muted-foreground hover:text-[#0466C8] transition-colors" />
+                    <Info className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-secondary transition-colors" />
                   </div>
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs">
                   <p className="text-sm">
-                    <strong>VIS:</strong> Vivienda de Interés Social (valor hasta 135 SMMLV, aprox. $180M).<br/>
-                    <strong>No VIS:</strong> Vivienda que supera el valor VIS.<br/>
-                    <strong>VIP:</strong> Vivienda de Interés Prioritario (valor hasta 70 SMMLV).
+                    <strong>VIS:</strong> Vivienda de Interés Social (hasta 135 SMMLV).<br/>
+                    <strong>No VIS:</strong> Vivienda que supera el valor VIS.
                   </p>
                 </TooltipContent>
               </Tooltip>
-            </TooltipProvider>
-          </label>
-          <Select
-            value={filters.housingType}
-            onValueChange={(value) => handleChange("housingType", value)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Seleccionar tipo" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              <SelectItem value="vis">VIS</SelectItem>
-              <SelectItem value="no_vis">No VIS</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+            </label>
+            <div className="flex gap-2">
+              {[
+                { value: "all", label: "Todos" },
+                { value: "vis", label: "VIS" },
+                { value: "no_vis", label: "No VIS" },
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => handleChange("housingType", option.value)}
+                  className={`
+                    flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
+                    ${filters.housingType === option.value
+                      ? "bg-foreground text-primary-foreground shadow-lg shadow-foreground/20 scale-[1.02]"
+                      : "bg-muted text-muted-foreground hover:bg-border hover:text-foreground"
+                    }
+                  `}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
-        {/* Denomination (Pesos/UVR) */}
-        <div className="space-y-3">
-          <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-            <Percent className="w-4 h-4 text-muted-foreground" />
-            Denominación
-            <TooltipProvider>
+          {/* Denomination - Toggle Pills */}
+          <div className="space-y-3">
+            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <Banknote className="w-4 h-4 text-secondary" />
+              Denominación
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div className="cursor-help">
-                    <Info className="w-4 h-4 text-muted-foreground hover:text-[#0466C8] transition-colors" />
+                    <Info className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-secondary transition-colors" />
                   </div>
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs">
                   <p className="text-sm">
-                    <strong>Pesos:</strong> Crédito en pesos colombianos con cuota fija o variable.<br/>
-                    <strong>UVR:</strong> Crédito indexado a la Unidad de Valor Real, ajustado por inflación.
-                    Cuota en UVR + spread, generalmente con tasas más bajas pero cuota variable.
+                    <strong>Pesos:</strong> Cuota fija o variable en COP.<br/>
+                    <strong>UVR:</strong> Indexado a inflación, tasa más baja pero cuota variable.
                   </p>
                 </TooltipContent>
               </Tooltip>
-            </TooltipProvider>
-          </label>
-          <Select
-            value={filters.denomination}
-            onValueChange={(value) => handleChange("denomination", value)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Seleccionar denominación" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              <SelectItem value="pesos">Pesos</SelectItem>
-              <SelectItem value="uvr">UVR</SelectItem>
-            </SelectContent>
-          </Select>
+            </label>
+            <div className="flex gap-2">
+              {[
+                { value: "all", label: "Todos" },
+                { value: "pesos", label: "Pesos" },
+                { value: "uvr", label: "UVR" },
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => handleChange("denomination", option.value)}
+                  className={`
+                    flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
+                    ${filters.denomination === option.value
+                      ? "bg-foreground text-primary-foreground shadow-lg shadow-foreground/20 scale-[1.02]"
+                      : "bg-muted text-muted-foreground hover:bg-border hover:text-foreground"
+                    }
+                  `}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Sort By */}
+          <div className="space-y-3">
+            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <ArrowUpDown className="w-4 h-4 text-secondary" />
+              Ordenar por
+            </label>
+            <Select
+              value={filters.sortBy}
+              onValueChange={(value) => handleChange("sortBy", value)}
+            >
+              <SelectTrigger className="h-[42px] rounded-xl border-border bg-muted hover:bg-border transition-colors text-sm font-medium text-foreground focus:ring-ring/20 focus:border-ring/40">
+                <SelectValue placeholder="Ordenar por" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="rate">Menor tasa</SelectItem>
+                <SelectItem value="payment">Menor mensualidad</SelectItem>
+                <SelectItem value="cat">Menor costo total</SelectItem>
+                <SelectItem value="rating">Mejor calificación</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        {/* Sort By */}
-        <div className="space-y-3">
-          <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-            <ArrowUpDown className="w-4 h-4 text-muted-foreground" />
-            Ordenar por
-          </label>
-          <Select
-            value={filters.sortBy}
-            onValueChange={(value) => handleChange("sortBy", value)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Ordenar por" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="rate">Menor tasa</SelectItem>
-              <SelectItem value="payment">Menor mensualidad</SelectItem>
-              <SelectItem value="cat">Menor costo total</SelectItem>
-              <SelectItem value="rating">Mejor calificación</SelectItem>
-            </SelectContent>
-          </Select>
+        {/* Divider */}
+        <div className="relative mb-8">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-border" />
+          </div>
+          <div className="relative flex justify-center">
+            <span className="bg-card px-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground/60">
+              Simulación
+            </span>
+          </div>
         </div>
-      </div>
 
-      <div className="mt-6 pt-6 border-t border-border flex flex-col sm:flex-row gap-3 sm:justify-between sm:items-center">
-        <Button className="bg-[#0466C8] hover:bg-[#0353A4] text-white">
-          Aplicar Filtros
-        </Button>
+        {/* === ROW 2: Sliders === */}
+        <div className="grid gap-8 lg:grid-cols-2">
+          {/* Amount Slider */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <div className="w-7 h-7 rounded-lg bg-secondary/10 flex items-center justify-center">
+                  <DollarSign className="w-4 h-4 text-secondary" />
+                </div>
+                Monto del crédito
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="cursor-help">
+                      <Info className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-secondary transition-colors" />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p className="text-sm">
+                      <strong>VIS:</strong> Típicamente entre $50M - $180M.<br/>
+                      <strong>No VIS:</strong> Desde $180M en adelante.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </label>
+            </div>
+
+            {/* Amount display + input */}
+            <div className="relative">
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-foreground/[0.02] to-secondary/[0.03] border border-secondary/10">
+                <span className="text-secondary/60 text-sm font-medium">$</span>
+                <Input
+                  type="text"
+                  value={formatInputCurrency(amountInput)}
+                  onChange={handleAmountInputChange}
+                  onBlur={handleAmountInputBlur}
+                  className="border-0 bg-transparent p-0 h-auto text-lg font-bold text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/50"
+                  placeholder="Ingrese el monto"
+                />
+                <span className="text-xs font-medium text-secondary bg-secondary/10 px-2 py-1 rounded-md whitespace-nowrap">
+                  COP
+                </span>
+              </div>
+            </div>
+
+            <div className="px-1">
+              <Slider
+                value={[filters.amount]}
+                onValueChange={([value]) => handleSliderChange(value)}
+                min={MIN_AMOUNT}
+                max={MAX_AMOUNT}
+                step={10000000}
+                className="py-2"
+              />
+              <div className="flex justify-between mt-2">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">$20M</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">$10.000M</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Term Slider */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <div className="w-7 h-7 rounded-lg bg-secondary/10 flex items-center justify-center">
+                  <Calendar className="w-4 h-4 text-secondary" />
+                </div>
+                Plazo del crédito
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="cursor-help">
+                      <Info className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-secondary transition-colors" />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p className="text-sm">
+                      Plazos cortos (5-10 años): cuotas altas, menos intereses.<br/>
+                      Plazos largos (20-30 años): cuotas bajas, más costo total.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </label>
+            </div>
+
+            {/* Term display + input */}
+            <div className="relative">
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-foreground/[0.02] to-secondary/[0.03] border border-secondary/10">
+                <Input
+                  type="text"
+                  value={termInput}
+                  onChange={handleTermInputChange}
+                  onBlur={handleTermInputBlur}
+                  className="border-0 bg-transparent p-0 h-auto text-lg font-bold text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/50"
+                  placeholder="Plazo en años"
+                />
+                <span className="text-xs font-medium text-secondary bg-secondary/10 px-2 py-1 rounded-md whitespace-nowrap">
+                  años
+                </span>
+              </div>
+            </div>
+
+            <div className="px-1">
+              <Slider
+                value={[filters.term]}
+                onValueChange={([value]) => handleTermSliderChange(value)}
+                min={MIN_TERM}
+                max={MAX_TERM}
+                step={1}
+                className="py-2"
+              />
+              <div className="flex justify-between mt-2">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">5 años</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">30 años</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </motion.div>
   );

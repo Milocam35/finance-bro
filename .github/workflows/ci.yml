@@ -1,0 +1,155 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ dev, staging, main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # ==================== LINT & FORMAT ====================
+  lint:
+    name: Lint and Format Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            finance-bro-api/package-lock.json
+            finance-bro-web/package-lock.json
+
+      - name: Install dependencies (Backend)
+        working-directory: ./finance-bro-api
+        run: npm ci
+
+      - name: Lint Backend
+        working-directory: ./finance-bro-api
+        run: npm run lint
+
+      - name: Install dependencies (Frontend)
+        working-directory: ./finance-bro-web
+        run: npm ci
+
+      - name: Lint Frontend
+        working-directory: ./finance-bro-web
+        run: npm run lint
+
+  # ==================== UNIT TESTS ====================
+  test-backend:
+    name: Backend Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: finance-bro-api/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./finance-bro-api
+        run: npm ci
+
+      - name: Run tests
+        working-directory: ./finance-bro-api
+        env:
+          DATABASE_HOST: localhost
+          DATABASE_PORT: 5432
+          DATABASE_USER: test
+          DATABASE_PASSWORD: test
+          DATABASE_NAME: test_db
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          JWT_SECRET: test-secret-key-for-ci-only
+          N8N_API_KEY: test-n8n-api-key
+        run: npm run test
+
+  # ==================== BUILD DOCKER IMAGES ====================
+  build:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: [test-backend]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Backend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./finance-bro-api
+          file: ./finance-bro-api/Dockerfile
+          push: false
+          tags: financebro-backend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build Frontend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./finance-bro-web
+          file: ./finance-bro-web/Dockerfile
+          push: false
+          tags: financebro-frontend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ==================== SECURITY SCAN ====================
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'

@@ -1,0 +1,163 @@
+services:
+  # ============================================
+  # PostgreSQL Database
+  # ============================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: financebro-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-financebro}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password123}
+      POSTGRES_DB: ${POSTGRES_DB:-financebro_db}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./finance-bro-api/src/database/init:/docker-entrypoint-initdb.d
+    networks:
+      - financebro-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-financebro} -d ${POSTGRES_DB:-financebro_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # Redis Cache (para caché y sesiones)
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: financebro-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - financebro-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    command: redis-server --appendonly yes
+
+  # ============================================
+  # Backend API (NestJS)
+  # ============================================
+  backend:
+    build:
+      context: ./finance-bro-api
+      dockerfile: Dockerfile
+      target: development
+    container_name: financebro-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+
+      # Database
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: ${POSTGRES_USER:-financebro}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-password123}
+      DATABASE_NAME: ${POSTGRES_DB:-financebro_db}
+
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+      # Security
+      N8N_API_KEY: ${N8N_API_KEY:-tu_clave_secreta_para_n8n}
+      JWT_SECRET: ${JWT_SECRET:-secret_jwt_key_change_in_production}
+      JWT_EXPIRATION: 7d
+
+      # TypeORM
+      TYPEORM_LOGGING: ${TYPEORM_LOGGING:-false}
+    ports:
+      - "${BACKEND_PORT:-3000}:3000"
+    volumes:
+      - ./finance-bro-api:/app
+      - /app/node_modules
+      - backend_logs:/app/logs
+    networks:
+      - financebro-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ============================================
+  # Frontend (React + Vite)
+  # ============================================
+  frontend:
+    build:
+      context: ./finance-bro-web
+      dockerfile: Dockerfile
+      target: development
+    container_name: financebro-frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      VITE_API_URL: http://localhost:${BACKEND_PORT:-3000}
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    volumes:
+      - ./finance-bro-web:/app
+      - /app/node_modules
+    networks:
+      - financebro-network
+    depends_on:
+      - backend
+    stdin_open: true
+    tty: true
+
+  # ============================================
+  # PgAdmin (opcional, para administrar DB)
+  # ============================================
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: financebro-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@financebro.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin123}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - financebro-network
+    depends_on:
+      - postgres
+    profiles:
+      - tools
+
+# ============================================
+# Volumes
+# ============================================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+  backend_logs:
+    driver: local
+
+# ============================================
+# Networks
+# ============================================
+networks:
+  financebro-network:
+    driver: bridge

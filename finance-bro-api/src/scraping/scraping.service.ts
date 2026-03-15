@@ -108,6 +108,8 @@ export class ScrapingService {
     await this.productosService.updateTasaVigente(producto.id, {
       tasa_valor: tasaNueva.tasa_valor ?? undefined,
       tasa_texto_original: dto.tasa || undefined,
+      tasa_final: tasaNueva.tasa_final ?? undefined,
+      uvr_variacion_anual: tasaNueva.uvr_variacion_anual ?? undefined,
       tasa_minima: tasaNueva.tasa_minima ?? undefined,
       tasa_maxima: tasaNueva.tasa_maxima ?? undefined,
       es_rango: tasaNueva.es_rango,
@@ -120,6 +122,8 @@ export class ScrapingService {
       await this.productosService.insertTasaHistorica({
         producto_id: producto.id,
         tasa_valor: tasaNueva.tasa_valor,
+        tasa_final: tasaNueva.tasa_final ?? undefined,
+        uvr_variacion_anual: tasaNueva.uvr_variacion_anual ?? undefined,
         fecha_extraccion: new Date(dto.fecha_extraccion),
         hora_extraccion: dto.hora_extraccion,
       });
@@ -218,6 +222,8 @@ export class ScrapingService {
     nombre_normalizado: string;
     tasas: {
       tasa_valor: number | null;
+      tasa_final: number | null;
+      uvr_variacion_anual: number | null;
       tasa_minima: number | null;
       tasa_maxima: number | null;
       es_rango: boolean;
@@ -233,12 +239,24 @@ export class ScrapingService {
 
     // Parsear tasas
     let tasa_valor: number | null = null;
+    let tasa_final: number | null = null;
+    let uvr_variacion_anual: number | null = null;
     let tasa_minima: number | null = null;
     let tasa_maxima: number | null = null;
     let es_rango = false;
 
     if (dto.tasa && dto.tasa.trim()) {
       tasa_valor = parseTasa(dto.tasa);
+    }
+
+    // Parsear tasa_final (para productos en UVR)
+    if (dto.tasa_final && dto.tasa_final.trim()) {
+      tasa_final = parseTasa(dto.tasa_final);
+    }
+
+    // Parsear uvr_variacion_anual (para productos en UVR)
+    if (dto.uvr_variacion_anual && dto.uvr_variacion_anual.trim()) {
+      uvr_variacion_anual = parseTasa(dto.uvr_variacion_anual);
     }
 
     if (dto.tasa_minima && dto.tasa_minima.trim()) {
@@ -279,6 +297,8 @@ export class ScrapingService {
       nombre_normalizado,
       tasas: {
         tasa_valor,
+        tasa_final,
+        uvr_variacion_anual,
         tasa_minima,
         tasa_maxima,
         es_rango,

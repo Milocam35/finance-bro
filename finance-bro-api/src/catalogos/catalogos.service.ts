@@ -1,4 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { EntidadFinanciera } from './entities/entidad-financiera.entity';
@@ -7,6 +13,10 @@ import { TipoVivienda } from './entities/tipo-vivienda.entity';
 import { Denominacion } from './entities/denominacion.entity';
 import { TipoTasa } from './entities/tipo-tasa.entity';
 import { TipoPago } from './entities/tipo-pago.entity';
+import {
+  CreateEntidadFinancieraDto,
+  UpdateEntidadFinancieraDto,
+} from './dto';
 
 @Injectable()
 export class CatalogosService {
@@ -179,5 +189,214 @@ export class CatalogosService {
     }
 
     return entidad;
+  }
+
+  // ============================================
+  // CRUD METHODS FOR ENTIDADES FINANCIERAS
+  // ============================================
+
+  /**
+   * Obtiene todas las entidades financieras
+   * @param includeInactive - Si true, incluye entidades inactivas
+   * @returns Array de EntidadFinanciera
+   */
+  async findAllEntidades(
+    includeInactive = false,
+  ): Promise<EntidadFinanciera[]> {
+    const where = includeInactive ? {} : { activo: true };
+
+    const entidades = await this.entidadFinancieraRepo.find({
+      where,
+      order: { nombre: 'ASC' },
+    });
+
+    this.logger.debug(
+      `Encontradas ${entidades.length} entidades financieras`,
+    );
+
+    return entidades;
+  }
+
+  /**
+   * Busca una entidad financiera por ID o nombre normalizado
+   * @param identifier - UUID o nombre normalizado
+   * @returns EntidadFinanciera
+   * @throws NotFoundException si no existe
+   */
+  async findOneEntidad(identifier: string): Promise<EntidadFinanciera> {
+    // Intentar buscar por UUID primero
+    const isUUID =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        identifier,
+      );
+
+    let entidad: EntidadFinanciera | null = null;
+
+    if (isUUID) {
+      entidad = await this.entidadFinancieraRepo.findOne({
+        where: { id: identifier },
+      });
+    } else {
+      // Buscar por nombre normalizado
+      entidad = await this.entidadFinancieraRepo.findOne({
+        where: { nombre_normalizado: identifier },
+      });
+    }
+
+    if (!entidad) {
+      throw new NotFoundException(
+        `Entidad financiera con identificador "${identifier}" no encontrada`,
+      );
+    }
+
+    return entidad;
+  }
+
+  /**
+   * Crea una nueva entidad financiera con validación de duplicados
+   * @param createDto - Datos de la entidad financiera
+   * @returns EntidadFinanciera creada
+   * @throws ConflictException si el nombre normalizado ya existe
+   */
+  async createEntidadFinanciera(
+    createDto: CreateEntidadFinancieraDto,
+  ): Promise<EntidadFinanciera> {
+    // Verificar si ya existe una entidad con ese nombre normalizado
+    const existente = await this.entidadFinancieraRepo.findOne({
+      where: { nombre_normalizado: createDto.nombre_normalizado },
+    });
+
+    if (existente) {
+      throw new ConflictException(
+        `Ya existe una entidad financiera con el nombre normalizado "${createDto.nombre_normalizado}"`,
+      );
+    }
+
+    const nuevaEntidad = this.entidadFinancieraRepo.create({
+      ...createDto,
+      activo: true,
+    });
+
+    const entidadGuardada =
+      await this.entidadFinancieraRepo.save(nuevaEntidad);
+
+    this.logger.log(
+      `Entidad financiera creada: ${entidadGuardada.nombre} (ID: ${entidadGuardada.id})`,
+    );
+
+    return entidadGuardada;
+  }
+
+  /**
+   * Actualiza una entidad financiera existente
+   * @param identifier - UUID o nombre normalizado
+   * @param updateDto - Datos a actualizar
+   * @returns EntidadFinanciera actualizada
+   * @throws NotFoundException si no existe
+   * @throws ConflictException si el nuevo nombre normalizado ya existe
+   */
+  async updateEntidadFinanciera(
+    identifier: string,
+    updateDto: UpdateEntidadFinancieraDto,
+  ): Promise<EntidadFinanciera> {
+    const entidad = await this.findOneEntidad(identifier);
+
+    // Si se está actualizando el nombre normalizado, verificar duplicados
+    if (
+      updateDto.nombre_normalizado &&
+      updateDto.nombre_normalizado !== entidad.nombre_normalizado
+    ) {
+      const existente = await this.entidadFinancieraRepo.findOne({
+        where: { nombre_normalizado: updateDto.nombre_normalizado },
+      });
+
+      if (existente && existente.id !== entidad.id) {
+        throw new ConflictException(
+          `Ya existe una entidad financiera con el nombre normalizado "${updateDto.nombre_normalizado}"`,
+        );
+      }
+    }
+
+    // Actualizar campos
+    Object.assign(entidad, updateDto);
+
+    const entidadActualizada =
+      await this.entidadFinancieraRepo.save(entidad);
+
+    this.logger.log(
+      `Entidad financiera actualizada: ${entidadActualizada.nombre} (ID: ${entidadActualizada.id})`,
+    );
+
+    return entidadActualizada;
+  }
+
+  /**
+   * Elimina (soft delete) una entidad financiera
+   * @param identifier - UUID o nombre normalizado
+   * @returns EntidadFinanciera eliminada
+   * @throws NotFoundException si no existe
+   * @throws BadRequestException si la entidad tiene productos asociados
+   */
+  async deleteEntidadFinanciera(identifier: string): Promise<EntidadFinanciera> {
+    const entidad = await this.findOneEntidad(identifier);
+
+    // TODO: Verificar si tiene productos asociados antes de eliminar
+    // Esto requeriría inyectar ProductosService o hacer una query directa
+
+    entidad.activo = false;
+    const entidadEliminada = await this.entidadFinancieraRepo.save(entidad);
+
+    this.logger.log(
+      `Entidad financiera desactivada: ${entidadEliminada.nombre} (ID: ${entidadEliminada.id})`,
+    );
+
+    return entidadEliminada;
+  }
+
+  /**
+   * Elimina permanentemente una entidad financiera (hard delete)
+   * @param identifier - UUID o nombre normalizado
+   * @returns void
+   * @throws NotFoundException si no existe
+   * @throws BadRequestException si la entidad tiene productos asociados
+   */
+  async hardDeleteEntidadFinanciera(identifier: string): Promise<void> {
+    const entidad = await this.findOneEntidad(identifier);
+
+    // TODO: Verificar si tiene productos asociados antes de eliminar
+
+    await this.entidadFinancieraRepo.remove(entidad);
+
+    this.logger.warn(
+      `Entidad financiera eliminada permanentemente: ${entidad.nombre} (ID: ${entidad.id})`,
+    );
+  }
+
+  /**
+   * Restaura una entidad financiera desactivada
+   * @param identifier - UUID o nombre normalizado
+   * @returns EntidadFinanciera restaurada
+   * @throws NotFoundException si no existe
+   */
+  async restoreEntidadFinanciera(
+    identifier: string,
+  ): Promise<EntidadFinanciera> {
+    const entidad = await this.findOneEntidad(identifier);
+
+    if (entidad.activo) {
+      this.logger.debug(
+        `Entidad financiera ya está activa: ${entidad.nombre}`,
+      );
+      return entidad;
+    }
+
+    entidad.activo = true;
+    const entidadRestaurada = await this.entidadFinancieraRepo.save(entidad);
+
+    this.logger.log(
+      `Entidad financiera restaurada: ${entidadRestaurada.nombre} (ID: ${entidadRestaurada.id})`,
+    );
+
+    return entidadRestaurada;
   }
 }

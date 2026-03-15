@@ -1,0 +1,240 @@
+name: CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: # Permite deploy manual desde GitHub UI
+
+jobs:
+  # ==================== BUILD & PUSH IMAGES ====================
+  build-and-push:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version from package.json
+        id: version
+        run: |
+          VERSION=$(node -p "require('./finance-bro-api/package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Version: $VERSION"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./finance-bro-api
+          file: ./finance-bro-api/Dockerfile
+          target: production
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/financebro-backend:latest
+            ${{ secrets.DOCKER_USERNAME }}/financebro-backend:${{ steps.version.outputs.version }}
+            ${{ secrets.DOCKER_USERNAME }}/financebro-backend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./finance-bro-web
+          file: ./finance-bro-web/Dockerfile
+          push: true
+          build-args: |
+            VITE_API_URL=/api
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/financebro-frontend:latest
+            ${{ secrets.DOCKER_USERNAME }}/financebro-frontend:${{ steps.version.outputs.version }}
+            ${{ secrets.DOCKER_USERNAME }}/financebro-frontend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ==================== DEPLOY TO EC2 ====================
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    environment:
+      name: production
+      url: https://financebro.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Create .env file
+        run: |
+          cat > .env.production << 'EOF'
+          POSTGRES_USER=financebro
+          POSTGRES_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
+          POSTGRES_DB=financebro_db
+          DATABASE_HOST=postgres
+          DATABASE_PORT=5432
+          DATABASE_NAME=financebro_db
+          REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+          REDIS_HOST=redis
+          REDIS_PORT=6379
+          NODE_ENV=production
+          PORT=3000
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          JWT_EXPIRATION=7d
+          N8N_API_KEY=${{ secrets.N8N_API_KEY }}
+          N8N_HOST=${{ secrets.N8N_HOST }}
+          VITE_API_URL=/api
+          PGADMIN_DEFAULT_EMAIL=admin@financebro.com
+          PGADMIN_DEFAULT_PASSWORD=${{ secrets.PGADMIN_PASSWORD }}
+          EOF
+
+      - name: Copy .env to EC2
+        run: |
+          scp -i ~/.ssh/id_rsa .env.production ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/${{ secrets.EC2_USER }}/Proyecto-FinanceBro/.env
+
+      - name: Deploy to EC2
+        run: |
+          ssh -i ~/.ssh/id_rsa ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'ENDSSH'
+          set -e
+
+          echo "🚀 Starting deployment..."
+
+          # Variables
+          PROJECT_DIR="/home/${{ secrets.EC2_USER }}/Proyecto-FinanceBro"
+          BACKUP_DIR="/home/${{ secrets.EC2_USER }}/backups/pre-deploy"
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+
+          # Crear backup antes de deploy
+          echo "📦 Creating pre-deployment backup..."
+          mkdir -p $BACKUP_DIR
+          cd $PROJECT_DIR
+
+          # Verificar si hay contenedores corriendo antes de hacer backup
+          if docker compose -f docker-compose.prod.yml ps postgres | grep -q "Up"; then
+            docker compose -f docker-compose.prod.yml exec -T postgres pg_dump -U financebro financebro_db | gzip > $BACKUP_DIR/backup_$TIMESTAMP.sql.gz
+            echo "✅ Backup created: backup_$TIMESTAMP.sql.gz"
+          else
+            echo "⚠️  No database running, skipping backup"
+          fi
+
+          # Pull latest code
+          echo "📥 Pulling latest code..."
+          git pull origin main
+
+          # Pull latest Docker images
+          echo "🐳 Pulling latest Docker images..."
+          docker compose -f docker-compose.prod.yml pull
+
+          # Stop old containers
+          echo "⏹️  Stopping old containers..."
+          docker compose -f docker-compose.prod.yml down
+
+          # Start new containers
+          echo "▶️  Starting new containers..."
+          docker compose -f docker-compose.prod.yml up -d
+
+          # Wait for services to be healthy
+          echo "⏳ Waiting for services to be healthy..."
+          sleep 15
+
+          # Run migrations
+          echo "🔄 Running database migrations..."
+          docker compose -f docker-compose.prod.yml exec -T backend npm run migration:run || echo "⚠️  Migrations may have failed or were already run"
+
+          # Health check
+          echo "🏥 Running health check..."
+          HEALTH_CHECK_PASSED=false
+          for i in {1..30}; do
+            if curl -f http://localhost:3000/health > /dev/null 2>&1; then
+              echo "✅ Backend is healthy!"
+              HEALTH_CHECK_PASSED=true
+              break
+            fi
+            echo "Waiting for backend... ($i/30)"
+            sleep 2
+          done
+
+          # Check if health check passed
+          if [ "$HEALTH_CHECK_PASSED" = false ]; then
+            echo "❌ Health check failed! Rolling back..."
+            docker compose -f docker-compose.prod.yml down
+
+            # Intentar restaurar backup más reciente si existe
+            if [ -f "$BACKUP_DIR/backup_$TIMESTAMP.sql.gz" ]; then
+              echo "🔄 Restoring from backup..."
+              docker compose -f docker-compose.prod.yml up -d postgres
+              sleep 10
+              gunzip -c $BACKUP_DIR/backup_$TIMESTAMP.sql.gz | docker compose -f docker-compose.prod.yml exec -T postgres psql -U financebro -d financebro_db
+            fi
+
+            exit 1
+          fi
+
+          # Cleanup old Docker images
+          echo "🧹 Cleaning up old Docker images..."
+          docker image prune -af --filter "until=72h"
+
+          echo "✅ Deployment successful!"
+          echo "📊 Version: ${{ needs.build-and-push.outputs.version }}"
+          echo "🔗 Commit: ${{ github.sha }}"
+          ENDSSH
+
+      - name: Verify deployment
+        run: |
+          echo "🔍 Verifying deployment..."
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.EC2_HOST }}/health)
+          if [ "$RESPONSE" = "200" ]; then
+            echo "✅ Deployment verified successfully!"
+          else
+            echo "❌ Deployment verification failed (HTTP $RESPONSE)"
+            exit 1
+          fi
+
+      - name: Clean up
+        if: always()
+        run: |
+          rm -f ~/.ssh/id_rsa
+          rm -f .env.production
+
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "## 🎉 Deployment Successful!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: ${{ needs.build-and-push.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment**: Production" >> $GITHUB_STEP_SUMMARY
+          echo "- **URL**: https://financebro.com" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deployed by**: @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Failure summary
+        if: failure()
+        run: |
+          echo "## ❌ Deployment Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The deployment to production failed. Please check the logs above." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Rollback Steps:" >> $GITHUB_STEP_SUMMARY
+          echo "1. SSH into EC2: \`ssh -i key.pem ubuntu@${{ secrets.EC2_HOST }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "2. Check logs: \`docker compose -f docker-compose.prod.yml logs\`" >> $GITHUB_STEP_SUMMARY
+          echo "3. Restore backup: \`~/restore-backup.sh\`" >> $GITHUB_STEP_SUMMARY

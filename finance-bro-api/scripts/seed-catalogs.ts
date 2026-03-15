@@ -4,6 +4,7 @@ import { TipoVivienda } from '../src/catalogos/entities/tipo-vivienda.entity';
 import { Denominacion } from '../src/catalogos/entities/denominacion.entity';
 import { TipoTasa } from '../src/catalogos/entities/tipo-tasa.entity';
 import { TipoPago } from '../src/catalogos/entities/tipo-pago.entity';
+import { EntidadFinanciera } from '../src/catalogos/entities/entidad-financiera.entity';
 
 async function seed() {
   console.log('🌱 Iniciando seed de catálogos...');
@@ -13,7 +14,32 @@ async function seed() {
   console.log('✅ Conexión a base de datos establecida');
 
   try {
-    // 1. TIPOS DE CRÉDITO
+    // 1. ENTIDADES FINANCIERAS
+    console.log('\n🏦 Seeding entidades_financieras...');
+    const entidadFinancieraRepo = AppDataSource.getRepository(EntidadFinanciera);
+
+    const entidades = [
+      {
+        nombre: 'Bancolombia',
+        nombre_normalizado: 'bancolombia',
+        sitio_web: 'https://www.bancolombia.com',
+        activo: true
+      },
+    ];
+
+    for (const entidad of entidades) {
+      const exists = await entidadFinancieraRepo.findOne({
+        where: { nombre_normalizado: entidad.nombre_normalizado },
+      });
+      if (!exists) {
+        await entidadFinancieraRepo.save(entidad);
+        console.log(`  ✓ Creado: ${entidad.nombre} (${entidad.nombre_normalizado})`);
+      } else {
+        console.log(`  ⊘ Ya existe: ${entidad.nombre} (${entidad.nombre_normalizado})`);
+      }
+    }
+
+    // 2. TIPOS DE CRÉDITO
     console.log('\n📋 Seeding tipos_credito...');
     const tipoCreditoRepo = AppDataSource.getRepository(TipoCredito);
 
@@ -36,7 +62,7 @@ async function seed() {
       }
     }
 
-    // 2. TIPOS DE VIVIENDA
+    // 3. TIPOS DE VIVIENDA
     console.log('\n🏠 Seeding tipos_vivienda...');
     const tipoViviendaRepo = AppDataSource.getRepository(TipoVivienda);
 
@@ -71,7 +97,7 @@ async function seed() {
       }
     }
 
-    // 3. DENOMINACIONES
+    // 4. DENOMINACIONES
     console.log('\n💰 Seeding denominaciones...');
     const denominacionRepo = AppDataSource.getRepository(Denominacion);
 
@@ -92,7 +118,7 @@ async function seed() {
       }
     }
 
-    // 4. TIPOS DE TASA
+    // 5. TIPOS DE TASA
     console.log('\n📊 Seeding tipos_tasa...');
     const tipoTasaRepo = AppDataSource.getRepository(TipoTasa);
 
@@ -121,7 +147,7 @@ async function seed() {
       }
     }
 
-    // 5. TIPOS DE PAGO
+    // 6. TIPOS DE PAGO
     console.log('\n💳 Seeding tipos_pago...');
     const tipoPagoRepo = AppDataSource.getRepository(TipoPago);
 

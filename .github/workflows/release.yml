@@ -1,0 +1,172 @@
+name: Release Pipeline
+
+on:
+  push:
+    tags:
+      - 'v*.*.*' # Trigger on tags like v1.0.0, v2.1.3, etc.
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history for changelog generation
+
+      - name: Get version from tag
+        id: version
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+          echo "📦 Creating release for: $TAG"
+
+      - name: Get previous tag
+        id: previous_tag
+        run: |
+          PREVIOUS=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          echo "previous=$PREVIOUS" >> $GITHUB_OUTPUT
+          if [ -z "$PREVIOUS" ]; then
+            echo "ℹ️  No previous tag found, this is the first release"
+          else
+            echo "📋 Previous tag: $PREVIOUS"
+          fi
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          PREVIOUS_TAG="${{ steps.previous_tag.outputs.previous }}"
+
+          if [ -z "$PREVIOUS_TAG" ]; then
+            echo "Generating full changelog..."
+            COMMITS=$(git log --pretty=format:"- %s (%h) by @%an" HEAD)
+          else
+            echo "Generating changelog from $PREVIOUS_TAG to HEAD..."
+            COMMITS=$(git log --pretty=format:"- %s (%h) by @%an" $PREVIOUS_TAG..HEAD)
+          fi
+
+          # Save to file to preserve multiline
+          echo "$COMMITS" > changelog.txt
+
+          # Also output for debugging
+          echo "### Commits:"
+          cat changelog.txt
+
+      - name: Categorize changes
+        id: categorize
+        run: |
+          # Categorizar commits por tipo (feat, fix, docs, etc.)
+          echo "## 📝 Changes" > categorized_changelog.md
+          echo "" >> categorized_changelog.md
+
+          # Features
+          FEATURES=$(grep -E "^- (feat|feature):" changelog.txt || echo "")
+          if [ ! -z "$FEATURES" ]; then
+            echo "### ✨ Features" >> categorized_changelog.md
+            echo "$FEATURES" | sed 's/^- (feat|feature): /- /' >> categorized_changelog.md
+            echo "" >> categorized_changelog.md
+          fi
+
+          # Bug Fixes
+          FIXES=$(grep -E "^- fix:" changelog.txt || echo "")
+          if [ ! -z "$FIXES" ]; then
+            echo "### 🐛 Bug Fixes" >> categorized_changelog.md
+            echo "$FIXES" | sed 's/^- fix: /- /' >> categorized_changelog.md
+            echo "" >> categorized_changelog.md
+          fi
+
+          # Documentation
+          DOCS=$(grep -E "^- docs:" changelog.txt || echo "")
+          if [ ! -z "$DOCS" ]; then
+            echo "### 📚 Documentation" >> categorized_changelog.md
+            echo "$DOCS" | sed 's/^- docs: /- /' >> categorized_changelog.md
+            echo "" >> categorized_changelog.md
+          fi
+
+          # Refactor
+          REFACTOR=$(grep -E "^- refactor:" changelog.txt || echo "")
+          if [ ! -z "$REFACTOR" ]; then
+            echo "### ♻️ Code Refactoring" >> categorized_changelog.md
+            echo "$REFACTOR" | sed 's/^- refactor: /- /' >> categorized_changelog.md
+            echo "" >> categorized_changelog.md
+          fi
+
+          # Other changes
+          OTHER=$(grep -Ev "^- (feat|feature|fix|docs|refactor):" changelog.txt || echo "")
+          if [ ! -z "$OTHER" ]; then
+            echo "### 🔧 Other Changes" >> categorized_changelog.md
+            echo "$OTHER" >> categorized_changelog.md
+            echo "" >> categorized_changelog.md
+          fi
+
+          cat categorized_changelog.md
+
+      - name: Create Release Notes
+        id: release_notes
+        run: |
+          cat > release_notes.md << 'EOF'
+          # 🎉 Release ${{ steps.version.outputs.tag }}
+
+          $(cat categorized_changelog.md)
+
+          ## 🐳 Docker Images
+
+          Pull the latest images:
+
+          ```bash
+          # Backend
+          docker pull ${{ secrets.DOCKER_USERNAME }}/financebro-backend:${{ steps.version.outputs.version }}
+
+          # Frontend
+          docker pull ${{ secrets.DOCKER_USERNAME }}/financebro-frontend:${{ steps.version.outputs.version }}
+          ```
+
+          ## 🚀 Deployment
+
+          This release has been automatically deployed to production.
+
+          - **Environment**: Production
+          - **URL**: https://financebro.com
+          - **API Docs**: https://financebro.com/api/docs
+
+          ## 📦 Assets
+
+          - **Backend Image**: `${{ secrets.DOCKER_USERNAME }}/financebro-backend:${{ steps.version.outputs.version }}`
+          - **Frontend Image**: `${{ secrets.DOCKER_USERNAME }}/financebro-frontend:${{ steps.version.outputs.version }}`
+
+          ## 🔗 Links
+
+          - [Full Changelog](https://github.com/${{ github.repository }}/compare/${{ steps.previous_tag.outputs.previous }}...${{ steps.version.outputs.tag }})
+          - [Documentation](https://github.com/${{ github.repository }}/blob/main/README.md)
+
+          ---
+
+          **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.previous_tag.outputs.previous }}...${{ steps.version.outputs.tag }}
+          EOF
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Release ${{ steps.version.outputs.tag }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release Summary
+        run: |
+          echo "## 🎉 Release Created Successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag**: \`${{ steps.version.outputs.tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Created by**: @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Docker Images" >> $GITHUB_STEP_SUMMARY
+          echo "- Backend: \`${{ secrets.DOCKER_USERNAME }}/financebro-backend:${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Frontend: \`${{ secrets.DOCKER_USERNAME }}/financebro-frontend:${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY

@@ -9,10 +9,12 @@ import { CondicionProducto } from './entities/condicion-producto.entity';
 import { RequisitoProducto } from './entities/requisito-producto.entity';
 import { BeneficioProducto } from './entities/beneficio-producto.entity';
 import { EjecucionScraping } from './entities/ejecucion-scraping.entity';
+import { CatalogosService } from '../catalogos/catalogos.service';
 
 @Injectable()
 export class ProductosService {
   private readonly logger = new Logger(ProductosService.name);
+  private readonly uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   constructor(
     @InjectRepository(ProductoCredito)
@@ -31,6 +33,7 @@ export class ProductosService {
     private readonly beneficioProductoRepo: Repository<BeneficioProducto>,
     @InjectRepository(EjecucionScraping)
     private readonly ejecucionScrapingRepo: Repository<EjecucionScraping>,
+    private readonly catalogosService: CatalogosService,
   ) {}
 
   // ==================== PRODUCTO CREDITO ====================
@@ -99,6 +102,355 @@ export class ProductosService {
       where: { id, activo: true },
       relations: ['entidad', 'tipo_credito', 'tipo_vivienda', 'denominacion', 'tipo_tasa', 'tipo_pago'],
     });
+  }
+
+  /**
+   * Obtiene un producto con TODAS sus relaciones (incluyendo tasas, montos, condiciones, etc.)
+   * @param id - UUID del producto
+   * @returns ProductoCredito completo con todas las relaciones
+   */
+  async findOneComplete(id: string): Promise<any> {
+    const producto = await this.productoCreditoRepo.findOne({
+      where: { id, activo: true },
+      relations: ['entidad', 'tipo_credito', 'tipo_vivienda', 'denominacion', 'tipo_tasa', 'tipo_pago'],
+    });
+
+    if (!producto) {
+      throw new NotFoundException(`Producto con ID ${id} no encontrado`);
+    }
+
+    // Obtener tasa vigente
+    const tasaVigente = await this.tasaVigenteRepo.findOne({
+      where: { producto_id: id },
+    });
+
+    // Obtener montos
+    const monto = await this.montoProductoRepo.findOne({
+      where: { producto_id: id },
+    });
+
+    // Obtener condiciones
+    const condiciones = await this.condicionProductoRepo.find({
+      where: { producto_id: id },
+      order: { orden: 'ASC' },
+    });
+
+    // Obtener requisitos
+    const requisitos = await this.requisitoProductoRepo.find({
+      where: { producto_id: id },
+      order: { orden: 'ASC' },
+    });
+
+    // Obtener beneficios
+    const beneficios = await this.beneficioProductoRepo.find({
+      where: { producto_id: id },
+    });
+
+    return {
+      ...producto,
+      tasa_vigente: tasaVigente || undefined,
+      monto: monto || undefined,
+      condiciones: condiciones.map((c) => ({ condicion: c.condicion, orden: c.orden })),
+      requisitos: requisitos.map((r) => ({
+        requisito: r.requisito,
+        es_obligatorio: r.es_obligatorio,
+        orden: r.orden,
+      })),
+      beneficios: beneficios.map((b) => ({
+        tipo_beneficio: b.tipo_beneficio,
+        descripcion: b.descripcion,
+        valor: b.valor,
+        aplica_condicion: b.aplica_condicion,
+      })),
+    };
+  }
+
+  /**
+   * Lista productos con filtros y paginación
+   * @param filters - Filtros de búsqueda
+   * @returns Lista paginada de productos
+   */
+  async findAll(filters: {
+    entidad_id?: string;
+    tipo_credito_id?: string;
+    tipo_vivienda_id?: string;
+    denominacion_id?: string;
+    tipo_tasa_id?: string;
+    tipo_pago_id?: string;
+    activo?: boolean;
+    search?: string;
+    page?: number;
+    limit?: number;
+    sortBy?: string;
+    sortOrder?: 'ASC' | 'DESC';
+  }): Promise<{ data: ProductoCredito[]; total: number }> {
+    const {
+      entidad_id,
+      tipo_credito_id,
+      tipo_vivienda_id,
+      denominacion_id,
+      tipo_tasa_id,
+      tipo_pago_id,
+      activo = true,
+      search,
+      page = 1,
+      limit = 10,
+      sortBy = 'created_at',
+      sortOrder = 'DESC',
+    } = filters;
+
+    const queryBuilder = this.productoCreditoRepo
+      .createQueryBuilder('producto')
+      .leftJoinAndSelect('producto.entidad', 'entidad')
+      .leftJoinAndSelect('producto.tipo_credito', 'tipo_credito')
+      .leftJoinAndSelect('producto.tipo_vivienda', 'tipo_vivienda')
+      .leftJoinAndSelect('producto.denominacion', 'denominacion')
+      .leftJoinAndSelect('producto.tipo_tasa', 'tipo_tasa')
+      .leftJoinAndSelect('producto.tipo_pago', 'tipo_pago');
+
+    // Aplicar filtros
+    queryBuilder.where('producto.activo = :activo', { activo });
+
+    if (entidad_id) {
+      queryBuilder.andWhere('producto.entidad_id = :entidad_id', { entidad_id });
+    }
+
+    if (tipo_credito_id) {
+      queryBuilder.andWhere('producto.tipo_credito_id = :tipo_credito_id', { tipo_credito_id });
+    }
+
+    if (tipo_vivienda_id) {
+      queryBuilder.andWhere('producto.tipo_vivienda_id = :tipo_vivienda_id', { tipo_vivienda_id });
+    }
+
+    if (denominacion_id) {
+      queryBuilder.andWhere('producto.denominacion_id = :denominacion_id', { denominacion_id });
+    }
+
+    if (tipo_tasa_id) {
+      queryBuilder.andWhere('producto.tipo_tasa_id = :tipo_tasa_id', { tipo_tasa_id });
+    }
+
+    if (tipo_pago_id) {
+      queryBuilder.andWhere('producto.tipo_pago_id = :tipo_pago_id', { tipo_pago_id });
+    }
+
+    if (search) {
+      queryBuilder.andWhere('producto.descripcion ILIKE :search', { search: `%${search}%` });
+    }
+
+    // Ordenamiento
+    queryBuilder.orderBy(`producto.${sortBy}`, sortOrder);
+
+    // Paginación
+    const skip = (page - 1) * limit;
+    queryBuilder.skip(skip).take(limit);
+
+    const [data, total] = await queryBuilder.getManyAndCount();
+
+    // Enriquecer con tasa_vigente, monto, condiciones, requisitos y beneficios
+    const enrichedData = await Promise.all(
+      data.map(async (producto) => {
+        const [tasaVigente, monto, condiciones, requisitos, beneficios] = await Promise.all([
+          this.tasaVigenteRepo.findOne({ where: { producto_id: producto.id } }),
+          this.montoProductoRepo.findOne({ where: { producto_id: producto.id } }),
+          this.condicionProductoRepo.find({ where: { producto_id: producto.id }, order: { orden: 'ASC' } }),
+          this.requisitoProductoRepo.find({ where: { producto_id: producto.id }, order: { orden: 'ASC' } }),
+          this.beneficioProductoRepo.find({ where: { producto_id: producto.id } }),
+        ]);
+
+        return {
+          ...producto,
+          tasa_vigente: tasaVigente
+            ? {
+                tasa_valor: tasaVigente.tasa_valor != null ? Number(tasaVigente.tasa_valor) : null,
+                tasa_final: tasaVigente.tasa_final != null ? Number(tasaVigente.tasa_final) : null,
+                uvr_variacion_anual: tasaVigente.uvr_variacion_anual != null ? Number(tasaVigente.uvr_variacion_anual) : null,
+                tasa_minima: tasaVigente.tasa_minima != null ? Number(tasaVigente.tasa_minima) : null,
+                tasa_maxima: tasaVigente.tasa_maxima != null ? Number(tasaVigente.tasa_maxima) : null,
+                es_rango: tasaVigente.es_rango,
+                tasa_texto_original: tasaVigente.tasa_texto_original,
+              }
+            : undefined,
+          monto: monto
+            ? {
+                monto_minimo: monto.monto_minimo != null ? Number(monto.monto_minimo) : null,
+                monto_maximo: monto.monto_maximo != null ? Number(monto.monto_maximo) : null,
+                plazo_minimo_meses: monto.plazo_minimo_meses != null ? Number(monto.plazo_minimo_meses) : null,
+                plazo_maximo_meses: monto.plazo_maximo_meses != null ? Number(monto.plazo_maximo_meses) : null,
+              }
+            : undefined,
+          condiciones: condiciones.map((c) => ({ condicion: c.condicion, orden: c.orden })),
+          requisitos: requisitos.map((r) => ({
+            requisito: r.requisito,
+            es_obligatorio: r.es_obligatorio,
+            orden: r.orden,
+          })),
+          beneficios: beneficios.map((b) => ({
+            tipo_beneficio: b.tipo_beneficio,
+            descripcion: b.descripcion,
+            valor: b.valor,
+            aplica_condicion: b.aplica_condicion,
+          })),
+        };
+      }),
+    );
+
+    this.logger.log(`Consultados ${enrichedData.length} productos (total: ${total})`);
+
+    return { data: enrichedData, total };
+  }
+
+  /**
+   * Elimina (soft delete) un producto
+   * @param id - UUID del producto
+   * @returns Producto desactivado
+   */
+  async remove(id: string): Promise<ProductoCredito> {
+    const producto = await this.productoCreditoRepo.findOne({ where: { id } });
+
+    if (!producto) {
+      throw new NotFoundException(`Producto con ID ${id} no encontrado`);
+    }
+
+    producto.activo = false;
+    const productoDesactivado = await this.productoCreditoRepo.save(producto);
+
+    this.logger.log(`Producto desactivado (soft delete): ${id}`);
+
+    return productoDesactivado;
+  }
+
+  /**
+   * Elimina permanentemente un producto de la base de datos (hard delete)
+   * ADVERTENCIA: Esta operación NO se puede deshacer
+   * @param id - UUID del producto
+   * @returns Resultado de la eliminación
+   */
+  async hardDelete(id: string): Promise<{ affected: number }> {
+    const producto = await this.productoCreditoRepo.findOne({ where: { id } });
+
+    if (!producto) {
+      throw new NotFoundException(`Producto con ID ${id} no encontrado`);
+    }
+
+    // Eliminar relaciones primero (debido a foreign keys)
+    await this.tasaVigenteRepo.delete({ producto_id: id });
+    await this.tasaHistoricaRepo.delete({ producto_id: id });
+    await this.montoProductoRepo.delete({ producto_id: id });
+    await this.condicionProductoRepo.delete({ producto_id: id });
+    await this.requisitoProductoRepo.delete({ producto_id: id });
+    await this.beneficioProductoRepo.delete({ producto_id: id });
+
+    // Eliminar el producto
+    const result = await this.productoCreditoRepo.delete({ id });
+
+    this.logger.warn(
+      `Producto eliminado permanentemente (hard delete): ${id} - ${producto.id_unico_scraping}`,
+    );
+
+    return { affected: result.affected || 0 };
+  }
+
+  // ==================== MÉTODOS DE RESOLUCIÓN ====================
+
+  /**
+   * Resuelve un identificador de entidad (UUID o nombre normalizado) a UUID
+   * @param idOrNombre - UUID o nombre normalizado de la entidad
+   * @returns UUID de la entidad
+   * @throws NotFoundException si la entidad no existe
+   */
+  async resolveEntidadId(idOrNombre: string): Promise<string> {
+    // Si es UUID, devolverlo directamente
+    if (this.uuidRegex.test(idOrNombre)) {
+      return idOrNombre;
+    }
+
+    // Si no es UUID, buscar por nombre normalizado
+    const entidad = await this.catalogosService.findEntidadByNombre(idOrNombre);
+
+    if (!entidad) {
+      throw new NotFoundException(
+        `Entidad financiera con nombre "${idOrNombre}" no encontrada`,
+      );
+    }
+
+    return entidad.id;
+  }
+
+  /**
+   * Resuelve un identificador de tipo de crédito (UUID o código) a UUID
+   * @param idOrCodigo - UUID o código del tipo de crédito
+   * @returns UUID del tipo de crédito
+   * @throws NotFoundException si el tipo de crédito no existe
+   */
+  async resolveTipoCreditoId(idOrCodigo: string): Promise<string> {
+    // Si es UUID, devolverlo directamente
+    if (this.uuidRegex.test(idOrCodigo)) {
+      return idOrCodigo;
+    }
+
+    // Si no es UUID, buscar por código
+    const tipoCredito = await this.catalogosService.findTipoCreditoByCodigo(idOrCodigo);
+
+    if (!tipoCredito) {
+      throw new NotFoundException(
+        `Tipo de crédito con código "${idOrCodigo}" no encontrado`,
+      );
+    }
+
+    return tipoCredito.id;
+  }
+
+  // ==================== CONSULTAS ESPECIALES ====================
+
+  /**
+   * Obtiene los productos con las mejores tasas (más bajas) de un tipo de crédito
+   * @param tipoCreditoId - UUID del tipo de crédito
+   * @param limit - Número máximo de productos a retornar
+   * @returns Array de productos ordenados por tasa de menor a mayor
+   */
+  async findMejoresTasas(tipoCreditoId: string, limit: number = 10): Promise<any[]> {
+    const productos = await this.productoCreditoRepo
+      .createQueryBuilder('producto')
+      .leftJoinAndSelect('producto.entidad', 'entidad')
+      .leftJoinAndSelect('producto.tipo_credito', 'tipo_credito')
+      .leftJoinAndSelect('producto.tipo_vivienda', 'tipo_vivienda')
+      .leftJoinAndSelect('producto.denominacion', 'denominacion')
+      .leftJoinAndSelect('producto.tipo_tasa', 'tipo_tasa')
+      .leftJoinAndSelect('producto.tipo_pago', 'tipo_pago')
+      .leftJoin('tasas_vigentes', 'tasa', 'tasa.producto_id = producto.id')
+      .where('producto.activo = :activo', { activo: true })
+      .andWhere('producto.tipo_credito_id = :tipoCreditoId', { tipoCreditoId })
+      .andWhere('tasa.tasa_valor IS NOT NULL')
+      .orderBy('tasa.tasa_valor', 'ASC')
+      .take(limit)
+      .getMany();
+
+    // Para cada producto, agregar la tasa vigente
+    const productosConTasa = await Promise.all(
+      productos.map(async (producto) => {
+        const tasaVigente = await this.tasaVigenteRepo.findOne({
+          where: { producto_id: producto.id },
+        });
+
+        const monto = await this.montoProductoRepo.findOne({
+          where: { producto_id: producto.id },
+        });
+
+        return {
+          ...producto,
+          tasa_vigente: tasaVigente || undefined,
+          monto: monto || undefined,
+        };
+      }),
+    );
+
+    this.logger.log(
+      `Consultados ${productosConTasa.length} productos con mejores tasas (tipo: ${tipoCreditoId})`,
+    );
+
+    return productosConTasa;
   }
 
   // ==================== TASA VIGENTE ====================

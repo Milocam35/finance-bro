@@ -205,6 +205,36 @@ function createBackup(workflowData, workflowName) {
   }
 }
 
+function askChoice(question, options) {
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  return new Promise((resolve) => {
+    console.log('');
+    options.forEach((opt, i) => {
+      console.log(`  ${colors.cyan}${i + 1}${colors.reset}) ${opt}`);
+    });
+    console.log('');
+    rl.question(question, (answer) => {
+      rl.close();
+      const index = parseInt(answer.trim(), 10) - 1;
+      if (index >= 0 && index < options.length) {
+        resolve(options[index]);
+      } else {
+        resolve(null);
+      }
+    });
+  });
+}
+
+function discoverWorkflows() {
+  const cwd = process.cwd();
+  const files = readdirSync(cwd).filter(f => f.endsWith('.json') && f !== 'package.json' && f !== 'package-lock.json' && f !== 'tsconfig.json');
+  return files;
+}
+
 async function main() {
   console.log('\n========================================');
   log('   n8n Workflow Sync Tool', 'cyan');
@@ -214,8 +244,31 @@ async function main() {
   validateEnv();
   log(`[OK] Connected to: ${N8N_HOST}`, 'green');
 
-  // Get file path from arguments or use default
-  const filePath = process.argv[2] || 'TextScrapperTool.json';
+  // Get file path from arguments or let user choose
+  let filePath = process.argv[2];
+
+  if (!filePath) {
+    const workflows = discoverWorkflows();
+    if (workflows.length === 0) {
+      log('\n[ERROR] No workflow JSON files found in current directory', 'red');
+      process.exit(1);
+    } else if (workflows.length === 1) {
+      filePath = workflows[0];
+      log(`[INFO] Found 1 workflow: ${filePath}`, 'cyan');
+    } else {
+      log(`[INFO] Found ${workflows.length} workflows:`, 'cyan');
+      const chosen = await askChoice(
+        `${colors.yellow}Select workflow to sync (1-${workflows.length}): ${colors.reset}`,
+        workflows
+      );
+      if (!chosen) {
+        log('\n[ERROR] Invalid selection', 'red');
+        process.exit(1);
+      }
+      filePath = chosen;
+    }
+  }
+
   log(`[INFO] Reading workflow from: ${filePath}`, 'cyan');
 
   // Read and parse workflow file

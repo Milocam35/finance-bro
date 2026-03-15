@@ -7,6 +7,7 @@ import configuration from './config/configuration';
 import { CatalogosModule } from './catalogos/catalogos.module';
 import { ProductosModule } from './productos/productos.module';
 import { ScrapingModule } from './scraping/scraping.module';
+import { HealthModule } from './health/health.module';
 
 // Importar entidades de catálogos
 import { EntidadFinanciera } from './catalogos/entities/entidad-financiera.entity';
@@ -72,6 +73,7 @@ import { EjecucionScraping } from './productos/entities/ejecucion-scraping.entit
     CatalogosModule,
     ProductosModule,
     ScrapingModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

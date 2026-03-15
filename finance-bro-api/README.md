@@ -1,3 +1,4 @@
+-- Active: 1769715475029@@127.0.0.1@5432@financebro_db
 # FinanceBro API - Backend de Ingesta
 
 Backend NestJS para el sistema de ingesta de datos de productos financieros desde n8n hacia PostgreSQL.

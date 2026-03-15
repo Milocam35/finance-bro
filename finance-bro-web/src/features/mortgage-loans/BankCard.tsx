@@ -1,6 +1,17 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { ChevronRight, Check, Info, ExternalLink, FileText } from "lucide-react";
+import {
+  ChevronRight,
+  Check,
+  Info,
+  ExternalLink,
+  FileText,
+  RotateCcw,
+  ArrowRight,
+  Clock,
+  Wallet,
+  TrendingDown,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -8,13 +19,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { ProductoCredito } from "./types";
 
 interface BankCardProps {
@@ -23,437 +27,597 @@ interface BankCardProps {
   loanAmount: number;
 }
 
-function getRateColor(rate: number): string {
-  if (rate <= 12.5) return "text-rate-excellent";
-  if (rate <= 13.5) return "text-rate-good";
-  if (rate <= 14.5) return "text-rate-average";
-  return "text-rate-high";
+// ─── Logo mapping from nombre_normalizado → local image path ─────────────────
+const BANK_LOGOS: Record<string, string> = {
+  bancolombia: "/images/banks/bancolombia.png",
+  davivienda: "/images/banks/davivienda.png",
+  bbva: "/images/banks/bbva.png",
+  scotiabank: "/images/banks/davibank.jpg",
+  "scotiabank colpatria": "/images/banks/davibank.jpg",
+  colpatria: "/images/banks/davibank.jpg",
+  itau: "/images/banks/itau.png",
+  "itaú": "/images/banks/itau.png",
+  "banco itaú": "/images/banks/itau.png",
+  lulo: "/images/banks/lulobank.png",
+  "lulo bank": "/images/banks/lulobank.png",
+  lulobank: "/images/banks/lulobank.png",
+  nu: "/images/banks/nu.svg",
+  "nu colombia": "/images/banks/nu.svg",
+  credifamilia: "/images/banks/credifamilia.png",
+  koa: "/images/banks/koa.png",
+  iris: "/images/banks/iris.png",
+};
+
+function getBankLogo(entidad: { nombre: string; nombre_normalizado: string; logo_url?: string | null }): string | null {
+  if (entidad.logo_url) return entidad.logo_url;
+
+  const normalized = entidad.nombre_normalizado.toLowerCase();
+  if (BANK_LOGOS[normalized]) return BANK_LOGOS[normalized];
+
+  // Try partial matching
+  for (const [key, path] of Object.entries(BANK_LOGOS)) {
+    if (normalized.includes(key) || key.includes(normalized)) return path;
+  }
+  return null;
 }
 
-function getRateBadge(rate: number): { label: string; variant: "default" | "secondary" | "outline" } {
-  if (rate <= 12.5) return { label: "Excelente", variant: "default" };
-  if (rate <= 13.5) return { label: "Buena", variant: "secondary" };
-  return { label: "Promedio", variant: "outline" };
+// ─── Brand color mapping for card accent ─────────────────────────────────────
+const BANK_COLORS: Record<string, { primary: string; bg: string }> = {
+  bancolombia: { primary: "#FDDA24", bg: "rgba(253, 218, 36, 0.08)" },
+  davivienda: { primary: "#ED1C24", bg: "rgba(237, 28, 36, 0.08)" },
+  bbva: { primary: "#004481", bg: "rgba(0, 68, 129, 0.08)" },
+  scotiabank: { primary: "#EC111A", bg: "rgba(236, 17, 26, 0.08)" },
+  colpatria: { primary: "#EC111A", bg: "rgba(236, 17, 26, 0.08)" },
+  itau: { primary: "#EC7000", bg: "rgba(236, 112, 0, 0.08)" },
+  lulobank: { primary: "#00C389", bg: "rgba(0, 195, 137, 0.08)" },
+  nu: { primary: "#820AD1", bg: "rgba(130, 10, 209, 0.08)" },
+  credifamilia: { primary: "#00A651", bg: "rgba(0, 166, 81, 0.08)" },
+  koa: { primary: "#1B3A5C", bg: "rgba(27, 58, 92, 0.08)" },
+  iris: { primary: "#6B5CE7", bg: "rgba(107, 92, 231, 0.08)" },
+};
+
+function getBankColor(nombre_normalizado: string): { primary: string; bg: string } {
+  const normalized = nombre_normalizado.toLowerCase();
+  if (BANK_COLORS[normalized]) return BANK_COLORS[normalized];
+  for (const [key, colors] of Object.entries(BANK_COLORS)) {
+    if (normalized.includes(key) || key.includes(normalized)) return colors;
+  }
+  return { primary: "hsl(var(--secondary))", bg: "hsl(var(--secondary) / 0.08)" };
 }
+
+// ─── Rate helpers ────────────────────────────────────────────────────────────
+
+function parseUvrSpread(texto?: string): number | null {
+  if (!texto) return null;
+  const match = texto.match(/UVR\s*\+\s*(\d+[.,]\d+)/i);
+  if (match) return parseFloat(match[1].replace(",", "."));
+  return null;
+}
+
+function getDisplayRate(producto: ProductoCredito): number {
+  const tv = producto.tasa_vigente;
+  if (!tv) return 0;
+  if (tv.tasa_valor != null && tv.tasa_valor > 0) return tv.tasa_valor;
+  if (tv.tasa_final != null && tv.tasa_final > 0) return tv.tasa_final;
+  return 0;
+}
+
+function getRateLevel(rate: number): { label: string; color: string; bgClass: string } {
+  if (rate <= 12.5)
+    return { label: "Excelente", color: "hsl(var(--rate-excellent))", bgClass: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" };
+  if (rate <= 13.5)
+    return { label: "Buena", color: "hsl(var(--rate-good))", bgClass: "bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300" };
+  if (rate <= 14.5)
+    return { label: "Promedio", color: "hsl(var(--rate-average))", bgClass: "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300" };
+  return { label: "Alta", color: "hsl(var(--rate-high))", bgClass: "bg-orange-50 text-orange-700 dark:bg-orange-950 dark:text-orange-300" };
+}
+
+// ─── Currency formatter ──────────────────────────────────────────────────────
+
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: "COP",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
+
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export function BankCard({ producto, index, loanAmount }: BankCardProps) {
-  const [showDetails, setShowDetails] = useState(false);
-  const rate = producto.tasa_vigente.tasa_valor;
-  const rateBadge = getRateBadge(rate);
+  const [isFlipped, setIsFlipped] = useState(false);
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("es-CO", {
-      style: "currency",
-      currency: "COP",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
+  const isUVR = producto.denominacion.codigo === "uvr";
+  const displayRate = getDisplayRate(producto);
+  const rateLevel = getRateLevel(displayRate);
+  const uvrSpread = isUVR
+    ? parseUvrSpread(producto.tasa_vigente?.tasa_texto_original)
+    : null;
+  const logo = getBankLogo(producto.entidad);
+  const bankColor = getBankColor(producto.entidad.nombre_normalizado);
+  const productUrl = producto.url_redireccion || producto.url_extraccion;
 
-  const getViviendaBadgeColor = (codigo: string) => {
+  const getViviendaBadge = (codigo: string) => {
     switch (codigo) {
-      case 'vis': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
-      case 'no_vis': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
-      case 'vip': return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200';
-      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200';
+      case "vis":
+        return "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800";
+      case "no_vis":
+        return "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950 dark:text-sky-300 dark:border-sky-800";
+      case "vip":
+        return "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950 dark:text-violet-300 dark:border-violet-800";
+      default:
+        return "bg-muted text-muted-foreground border-border";
     }
   };
 
   return (
-    <>
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.4, delay: index * 0.1 }}
-        className="group relative bg-card rounded-2xl border border-border card-elevated overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
-        onClick={() => setShowDetails(true)}
+    <motion.div
+      initial={{ opacity: 0, y: 24 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.45, delay: index * 0.07 }}
+      className="h-[460px]"
+      style={{ perspective: "1200px" }}
+    >
+      <div
+        className="relative w-full h-full transition-transform duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]"
+        style={{
+          transformStyle: "preserve-3d",
+          transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
+        }}
       >
-        {/* Highlight Badge */}
-        {producto.highlight && (
-          <div className="absolute top-0 left-0 right-0 bg-[#FFD60A] text-[#001233] text-xs font-semibold text-center py-1.5 z-10">
-            {producto.highlight}
-          </div>
-        )}
+        {/* ═══════════════════════════════════════════════ */}
+        {/* FRONT FACE                                     */}
+        {/* ═══════════════════════════════════════════════ */}
+        <div
+          className="absolute inset-0 rounded-2xl border border-border bg-card overflow-hidden"
+          style={{ backfaceVisibility: "hidden" }}
+        >
+          {/* Top accent bar with bank brand color */}
+          <div
+            className="h-1 w-full"
+            style={{
+              background: `linear-gradient(90deg, ${bankColor.primary}, ${bankColor.primary}80, transparent)`,
+            }}
+          />
 
-        <div className={`p-6 ${producto.highlight ? "pt-10" : ""}`}>
-          {/* Header */}
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center gap-3 flex-1">
-              <div className="w-14 h-14 rounded-xl bg-muted flex items-center justify-center text-2xl font-bold text-primary overflow-hidden shrink-0">
-                {producto.entidad.logo_url ? (
-                  <img src={producto.entidad.logo_url} alt={producto.entidad.nombre} className="w-full h-full object-contain p-2" />
+          <div className="p-5 h-[calc(100%-4px)] flex flex-col">
+            {/* Header: Logo + Name + Rate badge */}
+            <div className="flex items-start gap-3.5 mb-5">
+              {/* Bank logo */}
+              <div
+                className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0 border border-border/50 overflow-hidden"
+                style={{ backgroundColor: bankColor.bg }}
+              >
+                {logo ? (
+                  <img
+                    src={logo}
+                    alt={producto.entidad.nombre}
+                    className="w-10 h-10 object-contain"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = "none";
+                      target.parentElement!.innerHTML = `<span style="font-size:1.5rem;font-weight:700;color:${bankColor.primary}">${producto.entidad.nombre.charAt(0)}</span>`;
+                    }}
+                  />
                 ) : (
-                  producto.entidad.nombre.charAt(0)
+                  <span
+                    className="text-2xl font-bold"
+                    style={{ color: bankColor.primary }}
+                  >
+                    {producto.entidad.nombre.charAt(0)}
+                  </span>
                 )}
               </div>
-              <div className="min-w-0">
-                <h3 className="font-semibold text-foreground text-lg truncate">{producto.entidad.nombre}</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {producto.tipo_tasa.nombre}
+
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-foreground text-[15px] leading-tight truncate">
+                  {producto.entidad.nombre}
+                </h3>
+                <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                  {producto.tipo_tasa?.nombre ?? "Tasa efectiva anual"}
                 </p>
               </div>
-            </div>
-            <Badge variant={rateBadge.variant} className="shrink-0">{rateBadge.label}</Badge>
-          </div>
 
-          {/* Property Type & Payment Type */}
-          <div className="flex gap-2 mb-4">
-            <Badge variant="outline" className={getViviendaBadgeColor(producto.tipo_vivienda.codigo)}>
-              {producto.tipo_vivienda.nombre}
-            </Badge>
-            <Badge variant="outline">
-              {producto.tipo_pago.nombre}
-            </Badge>
-            {producto.denominacion.codigo === 'uvr' && (
-              <Badge variant="outline" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                UVR
-              </Badge>
-            )}
-          </div>
-
-          {/* Main Stats */}
-          <div className="grid grid-cols-3 gap-4 py-4 border-y border-border">
-            <div>
-              <div className="flex items-center gap-1 mb-1">
-                <span className="text-xs text-muted-foreground">
-                  {producto.tasa_vigente.es_rango ? "Tasa desde" : "Tasa anual"}
-                </span>
-                <Tooltip>
-                  <TooltipTrigger>
-                    <Info className="w-3 h-3 text-muted-foreground" />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{producto.tipo_tasa.nombre}</p>
-                    {producto.tasa_vigente.es_rango && (
-                      <p className="text-xs mt-1">
-                        Rango: {producto.tasa_vigente.tasa_minima}% - {producto.tasa_vigente.tasa_maxima}%
-                      </p>
-                    )}
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-              <p className={`text-2xl font-bold ${getRateColor(rate)}`}>
-                {producto.tasa_vigente.es_rango && producto.tasa_vigente.tasa_minima
-                  ? `${producto.tasa_vigente.tasa_minima.toFixed(2)}%`
-                  : `${rate.toFixed(2)}%`}
-              </p>
-            </div>
-            <div>
-              <div className="flex items-center gap-1 mb-1">
-                <span className="text-xs text-muted-foreground">Costo Total</span>
-                <Tooltip>
-                  <TooltipTrigger>
-                    <Info className="w-3 h-3 text-muted-foreground" />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Costo total anual promedio</p>
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-              <p className="text-2xl font-bold text-foreground">
-                {producto.cat ? `${producto.cat.toFixed(1)}%` : 'N/A'}
-              </p>
-            </div>
-            <div>
-              <span className="text-xs text-muted-foreground block mb-1">
-                Mensualidad est.
-              </span>
-              <p className="text-xl font-bold text-foreground">
-                {producto.cuota_mensual_estimada
-                  ? formatCurrency(producto.cuota_mensual_estimada)
-                  : 'N/A'}
-              </p>
-            </div>
-          </div>
-
-          {/* Details */}
-          <div className="grid grid-cols-2 gap-3 py-4 text-sm">
-            {producto.monto.monto_minimo > 0 && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Monto mín.</span>
-                <span className="font-medium text-foreground">
-                  {formatCurrency(producto.monto.monto_minimo)}
-                </span>
-              </div>
-            )}
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Monto máx.</span>
-              <span className="font-medium text-foreground">
-                {formatCurrency(producto.monto.monto_maximo)}
+              <span
+                className={`shrink-0 text-[10px] font-semibold px-2.5 py-1 rounded-full uppercase tracking-wide ${rateLevel.bgClass}`}
+              >
+                {rateLevel.label}
               </span>
             </div>
-            {producto.monto.plazo_minimo_meses > 0 && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Plazo mín.</span>
-                <span className="font-medium text-foreground">
-                  {Math.floor(producto.monto.plazo_minimo_meses / 12)} años
-                </span>
-              </div>
-            )}
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Plazo máx.</span>
-              <span className="font-medium text-foreground">
-                {Math.floor(producto.monto.plazo_maximo_meses / 12)} años
-              </span>
-            </div>
-            {producto.monto.porcentaje_financiacion_min > 0 && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Financiación mín.</span>
-                <span className="font-medium text-foreground">
-                  {producto.monto.porcentaje_financiacion_min}%
-                </span>
-              </div>
-            )}
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Financiación máx.</span>
-              <span className="font-medium text-foreground">
-                {producto.monto.porcentaje_financiacion_max}%
-              </span>
-            </div>
-          </div>
 
-          {/* Benefits Preview */}
-          {producto.beneficios.length > 0 && (
-            <div className="py-4 border-t border-border">
-              <p className="text-xs text-muted-foreground mb-2">Beneficios destacados</p>
-              <div className="flex flex-wrap gap-2">
-                {producto.beneficios.slice(0, 3).map((beneficio) => (
-                  <span
-                    key={beneficio.id}
-                    className="inline-flex items-center gap-1 text-xs bg-muted px-2 py-1 rounded-md text-foreground"
+            {/* Badges row */}
+            <div className="flex gap-1.5 mb-5 flex-wrap">
+              <span
+                className={`text-[10px] font-medium px-2.5 py-1 rounded-full border ${getViviendaBadge(producto.tipo_vivienda.codigo)}`}
+              >
+                {producto.tipo_vivienda.nombre}
+              </span>
+              {isUVR && (
+                <span className="text-[10px] font-medium px-2.5 py-1 rounded-full border bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800">
+                  UVR
+                </span>
+              )}
+              {producto.tipo_pago && (
+                <span className="text-[10px] font-medium px-2.5 py-1 rounded-full border bg-muted text-muted-foreground border-border">
+                  {producto.tipo_pago.nombre}
+                </span>
+              )}
+            </div>
+
+            {/* Rate display — the hero of the card */}
+            <div
+              className="rounded-xl p-4 mb-4"
+              style={{ backgroundColor: bankColor.bg }}
+            >
+              <div className="flex items-end justify-between">
+                <div>
+                  <p className="text-[11px] text-muted-foreground mb-1 flex items-center gap-1">
+                    {producto.tasa_vigente?.es_rango ? "Tasa desde" : isUVR ? "Tasa EA equivalente" : "Tasa anual"}
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <Info className="w-3 h-3 text-muted-foreground/60" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>{producto.tipo_tasa?.nombre ?? "Tasa efectiva anual"}</p>
+                        {producto.tasa_vigente?.es_rango && (
+                          <p className="text-xs mt-1">
+                            Rango: {producto.tasa_vigente.tasa_minima}% -{" "}
+                            {producto.tasa_vigente.tasa_maxima}%
+                          </p>
+                        )}
+                      </TooltipContent>
+                    </Tooltip>
+                  </p>
+                  <p
+                    className="text-3xl font-extrabold tracking-tight leading-none"
+                    style={{ color: rateLevel.color }}
                   >
-                    <Check className="w-3 h-3 text-[#0466C8]" />
-                    {beneficio.descripcion}
-                  </span>
+                    {producto.tasa_vigente?.es_rango && producto.tasa_vigente.tasa_minima
+                      ? `${producto.tasa_vigente.tasa_minima.toFixed(2)}%`
+                      : `${displayRate.toFixed(2)}%`}
+                  </p>
+                  {isUVR && uvrSpread != null && (
+                    <p className="text-[11px] text-muted-foreground mt-1.5 font-medium">
+                      UVR + {uvrSpread.toFixed(2)}%
+                    </p>
+                  )}
+                  {producto.tasa_vigente?.es_rango && producto.tasa_vigente.tasa_maxima && (
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      hasta {producto.tasa_vigente.tasa_maxima.toFixed(2)}%
+                    </p>
+                  )}
+                </div>
+                {/* Decorative rate indicator */}
+                <div className="flex items-center gap-1 opacity-40">
+                  <TrendingDown className="w-5 h-5" style={{ color: rateLevel.color }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Description snippet */}
+            {producto.descripcion && (
+              <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2 mb-3">
+                {producto.descripcion}
+              </p>
+            )}
+
+            {/* Quick stats */}
+            <div className="grid grid-cols-2 gap-2.5 mb-3">
+              {(producto.monto?.monto_maximo ?? 0) > 0 && (
+                <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/40">
+                  <Wallet className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-[9px] text-muted-foreground leading-tight">Monto máx.</p>
+                    <p className="text-[11px] font-semibold text-foreground truncate">
+                      {formatCurrency(producto.monto!.monto_maximo!)}
+                    </p>
+                  </div>
+                </div>
+              )}
+              {(producto.monto?.plazo_maximo_meses ?? 0) > 0 && (
+                <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/40">
+                  <Clock className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
+                  <div>
+                    <p className="text-[9px] text-muted-foreground leading-tight">Plazo máx.</p>
+                    <p className="text-[11px] font-semibold text-foreground">
+                      {Math.floor(producto.monto!.plazo_maximo_meses! / 12)} años
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Beneficios highlight */}
+            {(producto.beneficios?.length ?? 0) > 0 && (
+              <div className="space-y-1.5 mb-3 flex-1">
+                {producto.beneficios!.slice(0, 2).map((beneficio, i) => (
+                  <div key={i} className="flex items-start gap-1.5">
+                    <Check className="w-3 h-3 shrink-0 mt-0.5" style={{ color: bankColor.primary }} />
+                    <span className="text-[10px] text-muted-foreground leading-tight line-clamp-1">
+                      {beneficio.descripcion}
+                    </span>
+                  </div>
                 ))}
-                {producto.beneficios.length > 3 && (
-                  <span className="text-xs text-muted-foreground px-2 py-1">
-                    +{producto.beneficios.length - 3} más
-                  </span>
+                {producto.beneficios!.length > 2 && (
+                  <p className="text-[9px] text-muted-foreground/60 pl-[18px]">
+                    +{producto.beneficios!.length - 2} beneficios más
+                  </p>
                 )}
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Actions */}
-          <div className="flex gap-3 pt-4">
-            <Button
-              variant="outline"
-              className="flex-1"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowDetails(true);
-              }}
-            >
-              Ver detalles
-            </Button>
-            <Button
-              className="flex-1 bg-[#0466C8] hover:bg-[#0353A4] text-white"
-              onClick={(e) => {
-                e.stopPropagation();
-                // Aquí iría la lógica de redirección al banco
-              }}
-            >
-              Solicitar
-              <ChevronRight className="w-4 h-4 ml-1" />
-            </Button>
+            {/* Actions */}
+            <div className="flex gap-2.5 mt-auto">
+              <button
+                onClick={() => setIsFlipped(true)}
+                className="flex-1 h-10 rounded-xl border border-border text-sm font-medium text-foreground bg-card hover:bg-muted transition-colors flex items-center justify-center gap-1.5"
+              >
+                Más info
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (productUrl) window.open(productUrl, "_blank", "noopener,noreferrer");
+                }}
+                className="flex-1 h-10 rounded-xl text-sm font-semibold text-primary-foreground transition-all flex items-center justify-center gap-1.5 shadow-lg"
+                style={{
+                  backgroundColor: bankColor.primary,
+                  boxShadow: `0 4px 14px ${bankColor.primary}40`,
+                }}
+                onMouseEnter={(e) => {
+                  (e.target as HTMLElement).style.filter = "brightness(1.1)";
+                  (e.target as HTMLElement).style.transform = "translateY(-1px)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.target as HTMLElement).style.filter = "brightness(1)";
+                  (e.target as HTMLElement).style.transform = "translateY(0)";
+                }}
+              >
+                Solicitar
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
-      </motion.div>
 
-      {/* Modal de Detalles */}
-      <Dialog open={showDetails} onOpenChange={setShowDetails}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-16 h-16 rounded-xl bg-muted flex items-center justify-center text-2xl font-bold text-primary overflow-hidden">
-                {producto.entidad.logo_url ? (
-                  <img src={producto.entidad.logo_url} alt={producto.entidad.nombre} className="w-full h-full object-contain p-2" />
-                ) : (
-                  producto.entidad.nombre.charAt(0)
-                )}
+        {/* ═══════════════════════════════════════════════ */}
+        {/* BACK FACE                                      */}
+        {/* ═══════════════════════════════════════════════ */}
+        <div
+          className="absolute inset-0 rounded-2xl border border-border bg-card overflow-hidden"
+          style={{
+            backfaceVisibility: "hidden",
+            transform: "rotateY(180deg)",
+          }}
+        >
+          {/* Top accent bar */}
+          <div
+            className="h-1 w-full"
+            style={{
+              background: `linear-gradient(90deg, ${bankColor.primary}, ${bankColor.primary}80, transparent)`,
+            }}
+          />
+
+          <div className="p-5 h-[calc(100%-4px)] flex flex-col overflow-y-auto custom-scrollbar">
+            {/* Back header */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2.5">
+                <div
+                  className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 overflow-hidden"
+                  style={{ backgroundColor: bankColor.bg }}
+                >
+                  {logo ? (
+                    <img src={logo} alt="" className="w-6 h-6 object-contain" />
+                  ) : (
+                    <span className="text-sm font-bold" style={{ color: bankColor.primary }}>
+                      {producto.entidad.nombre.charAt(0)}
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold text-foreground leading-tight">
+                    {producto.entidad.nombre}
+                  </h4>
+                  <p className="text-[10px] text-muted-foreground">Detalles del producto</p>
+                </div>
               </div>
-              <div>
-                <DialogTitle className="text-2xl">{producto.entidad.nombre}</DialogTitle>
-                <DialogDescription>
-                  Crédito Hipotecario {producto.tipo_vivienda.nombre}
-                </DialogDescription>
-              </div>
+              <button
+                onClick={() => setIsFlipped(false)}
+                className="w-8 h-8 rounded-lg border border-border bg-card hover:bg-muted transition-colors flex items-center justify-center text-muted-foreground hover:text-foreground"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
             </div>
-          </DialogHeader>
 
-          <div className="space-y-6 mt-4">
-            {/* Descripción */}
+            {/* Description */}
             {producto.descripcion && (
-              <div>
-                <h3 className="font-semibold text-lg mb-2">Descripción del Producto</h3>
-                <p className="text-muted-foreground">{producto.descripcion}</p>
-              </div>
+              <p className="text-xs text-muted-foreground mb-4 leading-relaxed line-clamp-2">
+                {producto.descripcion}
+              </p>
             )}
 
-            {/* Información de la Tasa */}
-            <div>
-              <h3 className="font-semibold text-lg mb-3">Información de la Tasa</h3>
-              <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
-                <div>
-                  <p className="text-sm text-muted-foreground">Tipo de Tasa</p>
-                  <p className="font-medium">{producto.tipo_tasa.nombre}</p>
+            {/* Rate info grid */}
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <div className="p-2.5 rounded-lg bg-muted/50">
+                <p className="text-[10px] text-muted-foreground mb-0.5">Tasa</p>
+                <p className="text-sm font-bold" style={{ color: rateLevel.color }}>
+                  {displayRate.toFixed(2)}%
+                </p>
+              </div>
+              <div className="p-2.5 rounded-lg bg-muted/50">
+                <p className="text-[10px] text-muted-foreground mb-0.5">Denominación</p>
+                <p className="text-sm font-semibold text-foreground">
+                  {producto.denominacion.nombre.split(" ")[0]}
+                </p>
+              </div>
+              {isUVR && uvrSpread != null && (
+                <div className="p-2.5 rounded-lg bg-muted/50">
+                  <p className="text-[10px] text-muted-foreground mb-0.5">Spread UVR</p>
+                  <p className="text-sm font-semibold text-foreground">{uvrSpread.toFixed(2)}%</p>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Denominación</p>
-                  <p className="font-medium">{producto.denominacion.nombre.toUpperCase()}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Tasa</p>
-                  <p className="font-medium text-xl">
-                    {producto.tasa_vigente.es_rango
-                      ? `${producto.tasa_vigente.tasa_minima}% - ${producto.tasa_vigente.tasa_maxima}%`
-                      : `${rate.toFixed(2)}%`}
+              )}
+              {isUVR && producto.tasa_vigente?.uvr_variacion_anual && (
+                <div className="p-2.5 rounded-lg bg-muted/50">
+                  <p className="text-[10px] text-muted-foreground mb-0.5">Variación UVR</p>
+                  <p className="text-sm font-semibold text-foreground">
+                    {producto.tasa_vigente.uvr_variacion_anual}%
                   </p>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Tipo de Pago</p>
-                  <p className="font-medium">{producto.tipo_pago.nombre}</p>
+              )}
+              {producto.tipo_pago && (
+                <div className="p-2.5 rounded-lg bg-muted/50">
+                  <p className="text-[10px] text-muted-foreground mb-0.5">Tipo de pago</p>
+                  <p className="text-sm font-semibold text-foreground">{producto.tipo_pago.nombre}</p>
                 </div>
-                {producto.tasa_vigente.spread_uvr && (
-                  <div className="col-span-2">
-                    <p className="text-sm text-muted-foreground">Spread UVR</p>
-                    <p className="font-medium">{producto.tasa_vigente.spread_uvr}%</p>
-                  </div>
-                )}
-              </div>
+              )}
+              {producto.tasa_vigente?.tasa_texto_original && (
+                <div className="p-2.5 rounded-lg bg-muted/50 col-span-2">
+                  <p className="text-[10px] text-muted-foreground mb-0.5">Tasa original</p>
+                  <p className="text-xs font-medium text-foreground">
+                    {producto.tasa_vigente.tasa_texto_original}
+                  </p>
+                </div>
+              )}
             </div>
 
-            {/* Montos y Plazos */}
-            <div>
-              <h3 className="font-semibold text-lg mb-3">Montos y Plazos</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 border border-border rounded-lg">
-                  <p className="text-sm text-muted-foreground mb-1">Monto mínimo</p>
-                  <p className="font-medium text-lg">{formatCurrency(producto.monto.monto_minimo)}</p>
-                </div>
-                <div className="p-4 border border-border rounded-lg">
-                  <p className="text-sm text-muted-foreground mb-1">Monto máximo</p>
-                  <p className="font-medium text-lg">{formatCurrency(producto.monto.monto_maximo)}</p>
-                </div>
-                <div className="p-4 border border-border rounded-lg">
-                  <p className="text-sm text-muted-foreground mb-1">Plazo mínimo</p>
-                  <p className="font-medium text-lg">{Math.floor(producto.monto.plazo_minimo_meses / 12)} años</p>
-                </div>
-                <div className="p-4 border border-border rounded-lg">
-                  <p className="text-sm text-muted-foreground mb-1">Plazo máximo</p>
-                  <p className="font-medium text-lg">{Math.floor(producto.monto.plazo_maximo_meses / 12)} años</p>
-                </div>
-                <div className="p-4 border border-border rounded-lg">
-                  <p className="text-sm text-muted-foreground mb-1">Financiación mínima</p>
-                  <p className="font-medium text-lg">{producto.monto.porcentaje_financiacion_min}%</p>
-                </div>
-                <div className="p-4 border border-border rounded-lg">
-                  <p className="text-sm text-muted-foreground mb-1">Financiación máxima</p>
-                  <p className="font-medium text-lg">{producto.monto.porcentaje_financiacion_max}%</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Beneficios */}
-            {producto.beneficios.length > 0 && (
-              <div>
-                <h3 className="font-semibold text-lg mb-3">Beneficios</h3>
-                <div className="space-y-2">
-                  {producto.beneficios.map((beneficio) => (
-                    <div key={beneficio.id} className="flex items-start gap-3 p-3 bg-muted rounded-lg">
-                      <Check className="w-5 h-5 text-[#0466C8] shrink-0 mt-0.5" />
-                      <div className="flex-1">
-                        <p className="font-medium">{beneficio.descripcion}</p>
-                        {beneficio.valor && (
-                          <p className="text-sm text-muted-foreground mt-1">Valor: {beneficio.valor}</p>
-                        )}
-                        {beneficio.aplica_condicion && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Aplica: {beneficio.aplica_condicion}
-                          </p>
-                        )}
-                      </div>
+            {/* Montos & Plazos */}
+            {producto.monto && (
+              <div className="mb-4">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">
+                  Montos y plazos
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {producto.monto.monto_minimo != null && producto.monto.monto_minimo > 0 && (
+                    <div className="p-2.5 rounded-lg border border-border">
+                      <p className="text-[10px] text-muted-foreground">Monto mín.</p>
+                      <p className="text-xs font-semibold text-foreground">
+                        {formatCurrency(producto.monto.monto_minimo)}
+                      </p>
                     </div>
-                  ))}
+                  )}
+                  {producto.monto.monto_maximo != null && producto.monto.monto_maximo > 0 && (
+                    <div className="p-2.5 rounded-lg border border-border">
+                      <p className="text-[10px] text-muted-foreground">Monto máx.</p>
+                      <p className="text-xs font-semibold text-foreground">
+                        {formatCurrency(producto.monto.monto_maximo)}
+                      </p>
+                    </div>
+                  )}
+                  {producto.monto.plazo_minimo_meses != null && producto.monto.plazo_minimo_meses > 0 && (
+                    <div className="p-2.5 rounded-lg border border-border">
+                      <p className="text-[10px] text-muted-foreground">Plazo mín.</p>
+                      <p className="text-xs font-semibold text-foreground">
+                        {Math.floor(producto.monto.plazo_minimo_meses / 12)} años
+                      </p>
+                    </div>
+                  )}
+                  {producto.monto.plazo_maximo_meses != null && producto.monto.plazo_maximo_meses > 0 && (
+                    <div className="p-2.5 rounded-lg border border-border">
+                      <p className="text-[10px] text-muted-foreground">Plazo máx.</p>
+                      <p className="text-xs font-semibold text-foreground">
+                        {Math.floor(producto.monto.plazo_maximo_meses / 12)} años
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* Requisitos */}
-            {producto.requisitos.length > 0 && (
-              <div>
-                <h3 className="font-semibold text-lg mb-3">Requisitos</h3>
-                <div className="space-y-2">
-                  {producto.requisitos
-                    .sort((a, b) => a.orden - b.orden)
-                    .map((requisito) => (
-                      <div key={requisito.id} className="flex items-start gap-3 p-3 border border-border rounded-lg">
-                        <div className="shrink-0 mt-0.5">
-                          {requisito.es_obligatorio ? (
-                            <span className="text-red-500 font-bold">*</span>
-                          ) : (
-                            <span className="text-muted-foreground">○</span>
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-sm">{requisito.requisito}</p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {requisito.es_obligatorio ? "Obligatorio" : "Opcional"}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
+            {/* Beneficios */}
+            {(producto.beneficios?.length ?? 0) > 0 && (
+              <div className="mb-4">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">
+                  Beneficios
+                </p>
+                <div className="space-y-1.5">
+                  {producto.beneficios!.slice(0, 4).map((beneficio, i) => (
+                    <div key={i} className="flex items-start gap-2">
+                      <Check className="w-3 h-3 shrink-0 mt-0.5" style={{ color: bankColor.primary }} />
+                      <span className="text-[11px] text-foreground leading-tight">
+                        {beneficio.descripcion}
+                        {beneficio.valor && (
+                          <span className="text-muted-foreground"> ({beneficio.valor})</span>
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                  {producto.beneficios!.length > 4 && (
+                    <p className="text-[10px] text-muted-foreground pl-5">
+                      +{producto.beneficios!.length - 4} más
+                    </p>
+                  )}
                 </div>
               </div>
             )}
 
             {/* Condiciones */}
-            {producto.condiciones.length > 0 && (
-              <div>
-                <h3 className="font-semibold text-lg mb-3">Condiciones</h3>
-                <ul className="space-y-2">
-                  {producto.condiciones
+            {(producto.condiciones?.length ?? 0) > 0 && (
+              <div className="mb-4">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">
+                  Condiciones
+                </p>
+                <div className="space-y-1">
+                  {producto.condiciones!
                     .sort((a, b) => a.orden - b.orden)
-                    .map((condicion) => (
-                      <li key={condicion.id} className="flex items-start gap-2 text-sm">
-                        <span className="text-[#0466C8] mt-1">•</span>
-                        <span>{condicion.condicion}</span>
-                      </li>
+                    .slice(0, 3)
+                    .map((condicion, i) => (
+                      <p key={i} className="text-[11px] text-muted-foreground leading-tight flex items-start gap-1.5">
+                        <span style={{ color: bankColor.primary }}>-</span>
+                        {condicion.condicion}
+                      </p>
                     ))}
-                </ul>
+                  {producto.condiciones!.length > 3 && (
+                    <p className="text-[10px] text-muted-foreground pl-3.5">
+                      +{producto.condiciones!.length - 3} más
+                    </p>
+                  )}
+                </div>
               </div>
             )}
 
-            {/* Enlaces */}
-            <div className="flex gap-3 pt-4 border-t border-border">
-              {producto.url_pagina && (
-                <Button variant="outline" className="flex-1" asChild>
-                  <a href={producto.url_pagina} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    Ver página oficial
-                  </a>
-                </Button>
+            {/* Back actions */}
+            <div className="flex gap-2 mt-auto pt-3 border-t border-border">
+              {productUrl && (
+                <a
+                  href={productUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 h-9 rounded-xl border border-border text-[11px] font-medium text-foreground bg-card hover:bg-muted transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  Página oficial
+                </a>
               )}
               {producto.url_pdf && (
-                <Button variant="outline" className="flex-1" asChild>
-                  <a href={producto.url_pdf} target="_blank" rel="noopener noreferrer">
-                    <FileText className="w-4 h-4 mr-2" />
-                    Descargar PDF
-                  </a>
-                </Button>
+                <a
+                  href={producto.url_pdf}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 h-9 rounded-xl border border-border text-[11px] font-medium text-foreground bg-card hover:bg-muted transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <FileText className="w-3 h-3" />
+                  PDF
+                </a>
               )}
+              <button
+                onClick={() => {
+                  if (productUrl) window.open(productUrl, "_blank", "noopener,noreferrer");
+                }}
+                className="flex-1 h-9 rounded-xl text-[11px] font-semibold text-primary-foreground transition-all flex items-center justify-center gap-1"
+                style={{
+                  backgroundColor: bankColor.primary,
+                  boxShadow: `0 2px 8px ${bankColor.primary}40`,
+                }}
+              >
+                Solicitar
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
             </div>
-
-            {/* CTA Principal */}
-            <Button className="w-full bg-[#0466C8] hover:bg-[#0353A4] text-white text-lg py-6">
-              Solicitar este crédito
-              <ChevronRight className="w-5 h-5 ml-2" />
-            </Button>
           </div>
-        </DialogContent>
-      </Dialog>
-    </>
+        </div>
+      </div>
+    </motion.div>
   );
 }
