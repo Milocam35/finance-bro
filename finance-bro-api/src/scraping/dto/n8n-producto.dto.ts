@@ -53,16 +53,16 @@ export class N8nProductoDto {
   @MaxLength(255, { message: 'El tipo_credito no puede exceder 255 caracteres' })
   tipo_credito: string;
 
-  @ApiProperty({
-    description: 'Tipo de vivienda',
+  @ApiPropertyOptional({
+    description: 'Tipo de vivienda (opcional para créditos no hipotecarios)',
     example: 'VIS',
-    enum: ['VIS', 'No VIS', 'Aplica para ambos', 'VIP'],
+    enum: ['VIS', 'No VIS', 'Aplica para ambos', 'VIP', 'No aplica', ''],
     maxLength: 100,
   })
   @IsString()
-  @IsNotEmpty({ message: 'El tipo_vivienda es obligatorio' })
+  @IsOptional()
   @MaxLength(100, { message: 'El tipo_vivienda no puede exceder 100 caracteres' })
-  tipo_vivienda: string;
+  tipo_vivienda?: string;
 
   @ApiProperty({
     description: 'Denominación de la tasa',

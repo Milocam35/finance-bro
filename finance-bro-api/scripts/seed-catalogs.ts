@@ -83,6 +83,11 @@ async function seed() {
         nombre: 'Aplica para VIS y No VIS',
         activo: true,
       },
+      {
+        codigo: 'no_aplica',
+        nombre: 'No aplica',
+        activo: true,
+      },
     ];
 
     for (const tipo of tiposVivienda) {

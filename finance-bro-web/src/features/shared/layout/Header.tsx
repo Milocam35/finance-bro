@@ -10,7 +10,7 @@ const navItems = [
     submenu: [
       { label: "Créditos Hipotecarios", href: "/creditos-hipotecarios", active: true },
       { label: "Créditos Personales", href: "#personales", comingSoon: true },
-      { label: "Créditos Automotriz", href: "#automotriz", comingSoon: true },
+      { label: "Créditos de Vehículo", href: "/creditos-vehiculo", active: true },
       { label: "Créditos Empresariales", href: "#empresariales", comingSoon: true },
     ],
   },

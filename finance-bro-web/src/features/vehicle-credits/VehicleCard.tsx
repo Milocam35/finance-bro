@@ -13,22 +13,19 @@ import {
   TrendingDown,
   CalendarDays,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ProductoCredito } from "./types";
+import { ProductoCredito } from "@/features/mortgage-loans/types";
 
-interface BankCardProps {
+interface VehicleCardProps {
   producto: ProductoCredito;
   index: number;
   loanAmount: number;
 }
 
-// ─── Logo mapping from nombre_normalizado → local image path ─────────────────
 const BANK_LOGOS: Record<string, string> = {
   bancolombia: "/images/banks/bancolombia.png",
   davivienda: "/images/banks/davivienda.png",
@@ -51,18 +48,14 @@ const BANK_LOGOS: Record<string, string> = {
 
 function getBankLogo(entidad: { nombre: string; nombre_normalizado: string; logo_url?: string | null }): string | null {
   if (entidad.logo_url) return entidad.logo_url;
-
   const normalized = entidad.nombre_normalizado.toLowerCase();
   if (BANK_LOGOS[normalized]) return BANK_LOGOS[normalized];
-
-  // Try partial matching
   for (const [key, path] of Object.entries(BANK_LOGOS)) {
     if (normalized.includes(key) || key.includes(normalized)) return path;
   }
   return null;
 }
 
-// ─── Brand color mapping for card accent ─────────────────────────────────────
 const BANK_COLORS: Record<string, { primary: string; bg: string }> = {
   bancolombia: { primary: "#FDDA24", bg: "rgba(253, 218, 36, 0.08)" },
   davivienda: { primary: "#ED1C24", bg: "rgba(237, 28, 36, 0.08)" },
@@ -86,15 +79,6 @@ function getBankColor(nombre_normalizado: string): { primary: string; bg: string
   return { primary: "hsl(var(--secondary))", bg: "hsl(var(--secondary) / 0.08)" };
 }
 
-// ─── Rate helpers ────────────────────────────────────────────────────────────
-
-function parseUvrSpread(texto?: string): number | null {
-  if (!texto) return null;
-  const match = texto.match(/UVR\s*\+\s*(\d+[.,]\d+)/i);
-  if (match) return parseFloat(match[1].replace(",", "."));
-  return null;
-}
-
 function getDisplayRate(producto: ProductoCredito): number {
   const tv = producto.tasa_vigente;
   if (!tv) return 0;
@@ -104,16 +88,14 @@ function getDisplayRate(producto: ProductoCredito): number {
 }
 
 function getRateLevel(rate: number): { label: string; color: string; bgClass: string } {
-  if (rate <= 12.5)
+  if (rate <= 14)
     return { label: "Excelente", color: "hsl(var(--rate-excellent))", bgClass: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" };
-  if (rate <= 13.5)
+  if (rate <= 16)
     return { label: "Buena", color: "hsl(var(--rate-good))", bgClass: "bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300" };
-  if (rate <= 14.5)
+  if (rate <= 19)
     return { label: "Promedio", color: "hsl(var(--rate-average))", bgClass: "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300" };
   return { label: "Alta", color: "hsl(var(--rate-high))", bgClass: "bg-orange-50 text-orange-700 dark:bg-orange-950 dark:text-orange-300" };
 }
-
-// ─── Currency formatter ──────────────────────────────────────────────────────
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("es-CO", {
@@ -137,33 +119,14 @@ function formatExtractionDate(fecha?: string): string | null {
   }
 }
 
-// ─── Component ───────────────────────────────────────────────────────────────
-
-export function BankCard({ producto, index, loanAmount }: BankCardProps) {
+export function VehicleCard({ producto, index, loanAmount }: VehicleCardProps) {
   const [isFlipped, setIsFlipped] = useState(false);
 
-  const isUVR = producto.denominacion.codigo === "uvr";
   const displayRate = getDisplayRate(producto);
   const rateLevel = getRateLevel(displayRate);
-  const uvrSpread = isUVR
-    ? parseUvrSpread(producto.tasa_vigente?.tasa_texto_original)
-    : null;
   const logo = getBankLogo(producto.entidad);
   const bankColor = getBankColor(producto.entidad.nombre_normalizado);
   const productUrl = producto.url_redireccion || producto.url_extraccion;
-
-  const getViviendaBadge = (codigo: string) => {
-    switch (codigo) {
-      case "vis":
-        return "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800";
-      case "no_vis":
-        return "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950 dark:text-sky-300 dark:border-sky-800";
-      case "vip":
-        return "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950 dark:text-violet-300 dark:border-violet-800";
-      default:
-        return "bg-muted text-muted-foreground border-border";
-    }
-  };
 
   return (
     <motion.div
@@ -181,25 +144,19 @@ export function BankCard({ producto, index, loanAmount }: BankCardProps) {
           transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
         }}
       >
-        {/* ═══════════════════════════════════════════════ */}
-        {/* FRONT FACE                                     */}
-        {/* ═══════════════════════════════════════════════ */}
+        {/* FRONT FACE */}
         <div
           className="absolute inset-0 rounded-2xl border border-border bg-card overflow-hidden"
           style={{ backfaceVisibility: "hidden" }}
         >
-          {/* Top accent bar with bank brand color */}
           <div
             className="h-1 w-full"
-            style={{
-              background: `linear-gradient(90deg, ${bankColor.primary}, ${bankColor.primary}80, transparent)`,
-            }}
+            style={{ background: `linear-gradient(90deg, ${bankColor.primary}, ${bankColor.primary}80, transparent)` }}
           />
 
           <div className="p-5 h-[calc(100%-4px)] flex flex-col">
-            {/* Header: Logo + Name + Rate badge */}
+            {/* Header */}
             <div className="flex items-start gap-3.5 mb-5">
-              {/* Bank logo */}
               <div
                 className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0 border border-border/50 overflow-hidden"
                 style={{ backgroundColor: bankColor.bg }}
@@ -216,10 +173,7 @@ export function BankCard({ producto, index, loanAmount }: BankCardProps) {
                     }}
                   />
                 ) : (
-                  <span
-                    className="text-2xl font-bold"
-                    style={{ color: bankColor.primary }}
-                  >
+                  <span className="text-2xl font-bold" style={{ color: bankColor.primary }}>
                     {producto.entidad.nombre.charAt(0)}
                   </span>
                 )}
@@ -230,45 +184,33 @@ export function BankCard({ producto, index, loanAmount }: BankCardProps) {
                   {producto.entidad.nombre}
                 </h3>
                 <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                  {producto.tipo_tasa?.nombre ?? "Tasa efectiva anual"}
+                  Crédito de Vehículo
                 </p>
               </div>
 
-              <span
-                className={`shrink-0 text-[10px] font-semibold px-2.5 py-1 rounded-full uppercase tracking-wide ${rateLevel.bgClass}`}
-              >
+              <span className={`shrink-0 text-[10px] font-semibold px-2.5 py-1 rounded-full uppercase tracking-wide ${rateLevel.bgClass}`}>
                 {rateLevel.label}
               </span>
             </div>
 
-            {/* Badges row */}
+            {/* Badges */}
             <div className="flex gap-1.5 mb-5 flex-wrap">
-              <span
-                className={`text-[10px] font-medium px-2.5 py-1 rounded-full border ${getViviendaBadge(producto.tipo_vivienda.codigo)}`}
-              >
-                {producto.tipo_vivienda.nombre}
-              </span>
-              {isUVR && (
-                <span className="text-[10px] font-medium px-2.5 py-1 rounded-full border bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800">
-                  UVR
-                </span>
-              )}
               {producto.tipo_pago && (
                 <span className="text-[10px] font-medium px-2.5 py-1 rounded-full border bg-muted text-muted-foreground border-border">
                   {producto.tipo_pago.nombre}
                 </span>
               )}
+              <span className="text-[10px] font-medium px-2.5 py-1 rounded-full border bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950 dark:text-sky-300 dark:border-sky-800">
+                Pesos
+              </span>
             </div>
 
-            {/* Rate display — the hero of the card */}
-            <div
-              className="rounded-xl p-4 mb-4"
-              style={{ backgroundColor: bankColor.bg }}
-            >
+            {/* Rate display */}
+            <div className="rounded-xl p-4 mb-4" style={{ backgroundColor: bankColor.bg }}>
               <div className="flex items-end justify-between">
                 <div>
                   <p className="text-[11px] text-muted-foreground mb-1 flex items-center gap-1">
-                    {producto.tasa_vigente?.es_rango ? "Tasa desde" : isUVR ? "Tasa EA equivalente" : "Tasa anual"}
+                    {producto.tasa_vigente?.es_rango ? "Tasa desde" : "Tasa anual"}
                     <Tooltip>
                       <TooltipTrigger>
                         <Info className="w-3 h-3 text-muted-foreground/60" />
@@ -277,40 +219,30 @@ export function BankCard({ producto, index, loanAmount }: BankCardProps) {
                         <p>{producto.tipo_tasa?.nombre ?? "Tasa efectiva anual"}</p>
                         {producto.tasa_vigente?.es_rango && (
                           <p className="text-xs mt-1">
-                            Rango: {producto.tasa_vigente.tasa_minima}% -{" "}
-                            {producto.tasa_vigente.tasa_maxima}%
+                            Rango: {producto.tasa_vigente.tasa_minima}% - {producto.tasa_vigente.tasa_maxima}%
                           </p>
                         )}
                       </TooltipContent>
                     </Tooltip>
                   </p>
-                  <p
-                    className="text-3xl font-extrabold tracking-tight leading-none"
-                    style={{ color: rateLevel.color }}
-                  >
+                  <p className="text-3xl font-extrabold tracking-tight leading-none" style={{ color: rateLevel.color }}>
                     {producto.tasa_vigente?.es_rango && producto.tasa_vigente.tasa_minima
                       ? `${producto.tasa_vigente.tasa_minima.toFixed(2)}%`
                       : `${displayRate.toFixed(2)}%`}
                   </p>
-                  {isUVR && uvrSpread != null && (
-                    <p className="text-[11px] text-muted-foreground mt-1.5 font-medium">
-                      UVR + {uvrSpread.toFixed(2)}%
-                    </p>
-                  )}
                   {producto.tasa_vigente?.es_rango && producto.tasa_vigente.tasa_maxima && (
                     <p className="text-[10px] text-muted-foreground mt-1">
                       hasta {producto.tasa_vigente.tasa_maxima.toFixed(2)}%
                     </p>
                   )}
                 </div>
-                {/* Decorative rate indicator */}
                 <div className="flex items-center gap-1 opacity-40">
                   <TrendingDown className="w-5 h-5" style={{ color: rateLevel.color }} />
                 </div>
               </div>
             </div>
 
-            {/* Description snippet */}
+            {/* Description */}
             {producto.descripcion && (
               <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2 mb-3">
                 {producto.descripcion}
@@ -336,14 +268,16 @@ export function BankCard({ producto, index, loanAmount }: BankCardProps) {
                   <div>
                     <p className="text-[9px] text-muted-foreground leading-tight">Plazo máx.</p>
                     <p className="text-[11px] font-semibold text-foreground">
-                      {Math.floor(producto.monto!.plazo_maximo_meses! / 12)} años
+                      {producto.monto!.plazo_maximo_meses! >= 12
+                        ? `${Math.floor(producto.monto!.plazo_maximo_meses! / 12)} años`
+                        : `${producto.monto!.plazo_maximo_meses!} meses`}
                     </p>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Beneficios highlight */}
+            {/* Benefits */}
             {(producto.beneficios?.length ?? 0) > 0 && (
               <div className="space-y-1.5 mb-3 flex-1">
                 {producto.beneficios!.slice(0, 2).map((beneficio, i) => (
@@ -407,22 +341,14 @@ export function BankCard({ producto, index, loanAmount }: BankCardProps) {
           </div>
         </div>
 
-        {/* ═══════════════════════════════════════════════ */}
-        {/* BACK FACE                                      */}
-        {/* ═══════════════════════════════════════════════ */}
+        {/* BACK FACE */}
         <div
           className="absolute inset-0 rounded-2xl border border-border bg-card overflow-hidden"
-          style={{
-            backfaceVisibility: "hidden",
-            transform: "rotateY(180deg)",
-          }}
+          style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
         >
-          {/* Top accent bar */}
           <div
             className="h-1 w-full"
-            style={{
-              background: `linear-gradient(90deg, ${bankColor.primary}, ${bankColor.primary}80, transparent)`,
-            }}
+            style={{ background: `linear-gradient(90deg, ${bankColor.primary}, ${bankColor.primary}80, transparent)` }}
           />
 
           <div className="p-5 h-[calc(100%-4px)] flex flex-col overflow-y-auto custom-scrollbar">
@@ -445,7 +371,7 @@ export function BankCard({ producto, index, loanAmount }: BankCardProps) {
                   <h4 className="text-sm font-semibold text-foreground leading-tight">
                     {producto.entidad.nombre}
                   </h4>
-                  <p className="text-[10px] text-muted-foreground">Detalles del producto</p>
+                  <p className="text-[10px] text-muted-foreground">Detalles del crédito vehicular</p>
                 </div>
               </div>
               <button
@@ -473,24 +399,8 @@ export function BankCard({ producto, index, loanAmount }: BankCardProps) {
               </div>
               <div className="p-2.5 rounded-lg bg-muted/50">
                 <p className="text-[10px] text-muted-foreground mb-0.5">Denominación</p>
-                <p className="text-sm font-semibold text-foreground">
-                  {producto.denominacion.nombre.split(" ")[0]}
-                </p>
+                <p className="text-sm font-semibold text-foreground">Pesos</p>
               </div>
-              {isUVR && uvrSpread != null && (
-                <div className="p-2.5 rounded-lg bg-muted/50">
-                  <p className="text-[10px] text-muted-foreground mb-0.5">Spread UVR</p>
-                  <p className="text-sm font-semibold text-foreground">{uvrSpread.toFixed(2)}%</p>
-                </div>
-              )}
-              {isUVR && producto.tasa_vigente?.uvr_variacion_anual && (
-                <div className="p-2.5 rounded-lg bg-muted/50">
-                  <p className="text-[10px] text-muted-foreground mb-0.5">Variación UVR</p>
-                  <p className="text-sm font-semibold text-foreground">
-                    {producto.tasa_vigente.uvr_variacion_anual}%
-                  </p>
-                </div>
-              )}
               {producto.tipo_pago && (
                 <div className="p-2.5 rounded-lg bg-muted/50">
                   <p className="text-[10px] text-muted-foreground mb-0.5">Tipo de pago</p>
@@ -498,7 +408,7 @@ export function BankCard({ producto, index, loanAmount }: BankCardProps) {
                 </div>
               )}
               {producto.tasa_vigente?.tasa_texto_original && (
-                <div className="p-2.5 rounded-lg bg-muted/50 col-span-2">
+                <div className="p-2.5 rounded-lg bg-muted/50">
                   <p className="text-[10px] text-muted-foreground mb-0.5">Tasa original</p>
                   <p className="text-xs font-medium text-foreground">
                     {producto.tasa_vigente.tasa_texto_original}
@@ -517,32 +427,22 @@ export function BankCard({ producto, index, loanAmount }: BankCardProps) {
                   {producto.monto.monto_minimo != null && producto.monto.monto_minimo > 0 && (
                     <div className="p-2.5 rounded-lg border border-border">
                       <p className="text-[10px] text-muted-foreground">Monto mín.</p>
-                      <p className="text-xs font-semibold text-foreground">
-                        {formatCurrency(producto.monto.monto_minimo)}
-                      </p>
+                      <p className="text-xs font-semibold text-foreground">{formatCurrency(producto.monto.monto_minimo)}</p>
                     </div>
                   )}
                   {producto.monto.monto_maximo != null && producto.monto.monto_maximo > 0 && (
                     <div className="p-2.5 rounded-lg border border-border">
                       <p className="text-[10px] text-muted-foreground">Monto máx.</p>
-                      <p className="text-xs font-semibold text-foreground">
-                        {formatCurrency(producto.monto.monto_maximo)}
-                      </p>
-                    </div>
-                  )}
-                  {producto.monto.plazo_minimo_meses != null && producto.monto.plazo_minimo_meses > 0 && (
-                    <div className="p-2.5 rounded-lg border border-border">
-                      <p className="text-[10px] text-muted-foreground">Plazo mín.</p>
-                      <p className="text-xs font-semibold text-foreground">
-                        {Math.floor(producto.monto.plazo_minimo_meses / 12)} años
-                      </p>
+                      <p className="text-xs font-semibold text-foreground">{formatCurrency(producto.monto.monto_maximo)}</p>
                     </div>
                   )}
                   {producto.monto.plazo_maximo_meses != null && producto.monto.plazo_maximo_meses > 0 && (
                     <div className="p-2.5 rounded-lg border border-border">
                       <p className="text-[10px] text-muted-foreground">Plazo máx.</p>
                       <p className="text-xs font-semibold text-foreground">
-                        {Math.floor(producto.monto.plazo_maximo_meses / 12)} años
+                        {producto.monto.plazo_maximo_meses >= 12
+                          ? `${Math.floor(producto.monto.plazo_maximo_meses / 12)} años`
+                          : `${producto.monto.plazo_maximo_meses} meses`}
                       </p>
                     </div>
                   )}
@@ -550,7 +450,7 @@ export function BankCard({ producto, index, loanAmount }: BankCardProps) {
               </div>
             )}
 
-            {/* Beneficios */}
+            {/* Benefits */}
             {(producto.beneficios?.length ?? 0) > 0 && (
               <div className="mb-4">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">
@@ -562,42 +462,27 @@ export function BankCard({ producto, index, loanAmount }: BankCardProps) {
                       <Check className="w-3 h-3 shrink-0 mt-0.5" style={{ color: bankColor.primary }} />
                       <span className="text-[11px] text-foreground leading-tight">
                         {beneficio.descripcion}
-                        {beneficio.valor && (
-                          <span className="text-muted-foreground"> ({beneficio.valor})</span>
-                        )}
+                        {beneficio.valor && <span className="text-muted-foreground"> ({beneficio.valor})</span>}
                       </span>
                     </div>
                   ))}
-                  {producto.beneficios!.length > 4 && (
-                    <p className="text-[10px] text-muted-foreground pl-5">
-                      +{producto.beneficios!.length - 4} más
-                    </p>
-                  )}
                 </div>
               </div>
             )}
 
-            {/* Condiciones */}
+            {/* Conditions */}
             {(producto.condiciones?.length ?? 0) > 0 && (
               <div className="mb-4">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">
                   Condiciones
                 </p>
                 <div className="space-y-1">
-                  {producto.condiciones!
-                    .sort((a, b) => a.orden - b.orden)
-                    .slice(0, 3)
-                    .map((condicion, i) => (
-                      <p key={i} className="text-[11px] text-muted-foreground leading-tight flex items-start gap-1.5">
-                        <span style={{ color: bankColor.primary }}>-</span>
-                        {condicion.condicion}
-                      </p>
-                    ))}
-                  {producto.condiciones!.length > 3 && (
-                    <p className="text-[10px] text-muted-foreground pl-3.5">
-                      +{producto.condiciones!.length - 3} más
+                  {producto.condiciones!.sort((a, b) => a.orden - b.orden).slice(0, 3).map((condicion, i) => (
+                    <p key={i} className="text-[11px] text-muted-foreground leading-tight flex items-start gap-1.5">
+                      <span style={{ color: bankColor.primary }}>-</span>
+                      {condicion.condicion}
                     </p>
-                  )}
+                  ))}
                 </div>
               </div>
             )}

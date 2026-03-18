@@ -1,0 +1,1288 @@
+{
+  "name": "VehicleScrapperTool",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * 1,3,5"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -800,
+        208
+      ],
+      "id": "trigger-schedule-001",
+      "name": "Mon-Wed-Fri 7AM Bogota"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        0
+      ],
+      "id": "trigger-manual-001",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1yUR0Tow3yrbSemyzmsqDY4VoF113wrxfCwVDhSTOsoM",
+          "mode": "list",
+          "cachedResultName": "BankScrappedData",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1yUR0Tow3yrbSemyzmsqDY4VoF113wrxfCwVDhSTOsoM/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "LinksVehiculo",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -560,
+        208
+      ],
+      "id": "read-bank-urls-001",
+      "name": "Read Bank URLs",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "rWJE0ntmYwzYmIeB",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// NODO: Filter Active Banks\n// Solo procesa bancos marcados como activos\n// ============================================\n\nconst items = $input.all();\n\nconst activeBanks = items.filter(item => {\n  const activo = item.json.activo;\n  return activo === true || activo === 'TRUE' || activo === 'true' || activo === 'SI' || activo === 'si' || activo === 'Sí' || activo === 'sí';\n});\n\nif (activeBanks.length === 0) {\n  throw new Error('No hay bancos activos en la pestaña Links del Google Sheet. Agrega al menos un banco con activo=TRUE.');\n}\n\nconst bankNames = activeBanks.map(b => b.json.banco || b.json.url).join(', ');\nconsole.log(`Procesando ${activeBanks.length} bancos: ${bankNames}`);\n\nreturn activeBanks;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        208
+      ],
+      "id": "filter-active-001",
+      "name": "Filter Active Banks"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// NODO: Restore Bank Items After Filter\n// Recupera la lista de bancos filtrados para el loop\n// ============================================\n\nconst bankItems = $('Filter Active Banks').all();\nreturn bankItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        208
+      ],
+      "id": "restore-banks-001",
+      "name": "Restore Bank Items"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 1,
+      "position": [
+        544,
+        208
+      ],
+      "id": "split-batches-001",
+      "name": "Process Banks One by One"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "bank-var-url",
+              "name": "url",
+              "value": "={{ $json.url.includes(',') ? $json.url.split(',')[0].trim() : $json.url.trim() }}",
+              "type": "string"
+            },
+            {
+              "id": "bank-var-extra-urls",
+              "name": "extra_urls",
+              "value": "={{ $json.url.includes(',') ? $json.url.split(',').slice(1).map(u => u.trim()).filter(u => u).join(',') : '' }}",
+              "type": "string"
+            },
+            {
+              "id": "bank-var-tipo",
+              "name": "tipo_producto",
+              "value": "={{ $json.tipo_producto || 'Crédito hipotecario para compra de vivienda' }}",
+              "type": "string"
+            },
+            {
+              "id": "bank-var-pdf",
+              "name": "pdf_url",
+              "value": "={{ $json.pdf_url || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "bank-var-haspdf",
+              "name": "has_pdf",
+              "value": "={{ $json.pdf_url && $json.pdf_url.trim() !== '' }}",
+              "type": "string"
+            },
+            {
+              "id": "bank-var-target",
+              "name": "target_url",
+              "value": "={{ $json.target_url || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "bank-var-banco",
+              "name": "banco_nombre",
+              "value": "={{ $json.banco || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        752,
+        208
+      ],
+      "id": "set-bank-vars-001",
+      "name": "Set Bank Variables"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "protocol-url",
+              "name": "finalUrl",
+              "value": "={{ $json.url.startsWith('http') ? $json.url : 'https://' + $json.url }}",
+              "type": "string"
+            },
+            {
+              "id": "protocol-tipo",
+              "name": "tipo_producto",
+              "value": "={{ $json.tipo_producto }}",
+              "type": "string"
+            },
+            {
+              "id": "protocol-pdf",
+              "name": "pdf_url",
+              "value": "={{ $json.pdf_url && $json.pdf_url.trim() !== '' ? ($json.pdf_url.startsWith('http') ? $json.pdf_url : 'https://' + $json.pdf_url) : '' }}",
+              "type": "string"
+            },
+            {
+              "id": "protocol-haspdf",
+              "name": "has_pdf",
+              "value": "={{ $json.has_pdf === 'true' || $json.has_pdf === true }}",
+              "type": "boolean"
+            },
+            {
+              "id": "protocol-target",
+              "name": "target_url",
+              "value": "={{ $json.target_url && $json.target_url.trim() !== '' ? ($json.target_url.startsWith('http') ? $json.target_url : 'https://' + $json.target_url) : '' }}",
+              "type": "string"
+            },
+            {
+              "id": "protocol-banco",
+              "name": "banco_nombre",
+              "value": "={{ $json.banco_nombre }}",
+              "type": "string"
+            },
+            {
+              "id": "protocol-extra-urls",
+              "name": "extra_urls",
+              "value": "={{ $json.extra_urls ? $json.extra_urls.split(',').map(u => u.trim()).map(u => u.startsWith('http') ? u : 'https://' + u).join(',') : '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        944,
+        208
+      ],
+      "id": "add-protocol-001",
+      "name": "Add Protocol To Domain"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.finalUrl }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\n  \"User-Agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\",\n  \"Accept\": \"text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8\",\n  \"Accept-Language\": \"es-ES,es;q=0.9,en;q=0.8\",\n  \"Accept-Encoding\": \"gzip, deflate, br\",\n  \"Connection\": \"keep-alive\",\n  \"Upgrade-Insecure-Requests\": \"1\",\n  \"Sec-Fetch-Dest\": \"document\",\n  \"Sec-Fetch-Mode\": \"navigate\",\n  \"Sec-Fetch-Site\": \"none\",\n  \"Cache-Control\": \"max-age=0\"\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1152,
+        208
+      ],
+      "id": "extract-page-001",
+      "name": "Extract Page Structure",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "blocked1-cond",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "notExists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1344,
+        208
+      ],
+      "id": "blocked1-001",
+      "name": "HTML Blocked?"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.scraperapi.com/?api_key=2cad0b340b1da2b4dc6796b8e68b5c64&url={{ $('Add Protocol To Domain').item.json.finalUrl }}&render=true&country_code=co",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\n  \"User-Agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\",\n  \"Accept\": \"text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8\",\n  \"Accept-Language\": \"es-ES,es;q=0.9,en;q=0.8\"\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1552,
+        368
+      ],
+      "id": "scraperapi-001",
+      "name": "ScraperAPI Fallback",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// NODO: Extract Body HTML - CON SOPORTE MULTI-URL\n// ============================================\n\nconst cheerio = require('cheerio');\n\nconst KEYWORDS = [\n  'tasa', 'tasas', 'crédito', 'credito', 'vehículo', 'vehiculo',\n  'automóvil', 'automovil', 'carro', 'moto', 'motocicleta',\n  'usado', 'nuevo', 'modelo', 'financiación', 'financiacion',\n  'plazo', 'cuota', 'monto', 'desde', 'hasta', 'fija', 'variable',\n  'interés', 'interes', 'ea', 'efectivo anual', 'seguro', 'prenda',\n  'garantía', 'garantia', 'mensual', 'porcentaje'\n];\n\n// Regex para detectar porcentajes (ej: 11.95%, UVR + 6.50%, E.A.)\nconst RATE_REGEX = /\\d+[.,]\\d+\\s*%|E\\.?A\\.?|N\\.?M\\.?V|UVR/i;\n\nconst HEADERS = {\n  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',\n  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',\n  'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8'\n};\n\nfunction cleanText(text) {\n  return text.replace(/\\s+/g, ' ').trim();\n}\n\nfunction hasRateData(text) {\n  return RATE_REGEX.test(text);\n}\n\nfunction isRelevant(text) {\n  if (!text) return false;\n  // Capturar textos cortos si contienen porcentajes/tasas\n  if (text.length >= 5 && hasRateData(text)) return true;\n  if (text.length < 10) return false;\n  const lowerText = text.toLowerCase();\n  return KEYWORDS.some(keyword => lowerText.includes(keyword));\n}\n\nfunction extractFromHtml(htmlStr) {\n  const $ = cheerio.load(htmlStr);\n  $('script, style, noscript, iframe, form').remove();\n\n  const tables = [];\n  $('table').each((i, table) => {\n    const tableText = $(table).text();\n    if (isRelevant(tableText)) {\n      const rows = [];\n      $(table).find('tr').each((j, row) => {\n        const cells = [];\n        $(row).find('td, th').each((k, cell) => {\n          const cellText = cleanText($(cell).text());\n          if (cellText) cells.push(cellText);\n        });\n        if (cells.length > 0) rows.push(cells.join(' | '));\n      });\n      if (rows.length > 0) tables.push(rows.join('\\n'));\n    }\n  });\n\n  // Extraer contenido de headings + paragraphs + divs + spans\n  const relevantParagraphs = [];\n  const seen = new Set();\n\n  // Primero: capturar headings con contexto (heading + siguiente sibling)\n  $('h1, h2, h3, h4').each((i, heading) => {\n    const headText = cleanText($(heading).text());\n    if (!headText || headText.length < 3) return;\n    // Obtener el texto del siguiente hermano para dar contexto\n    const nextSibling = $(heading).next();\n    const nextText = nextSibling.length ? cleanText(nextSibling.text()) : '';\n    // Si el heading o su contexto son relevantes, capturar ambos\n    if (isRelevant(headText) || isRelevant(nextText) || hasRateData(headText)) {\n      const combined = nextText ? `${headText}: ${nextText}` : headText;\n      if (!seen.has(combined) && combined.length < 1000) {\n        seen.add(combined);\n        relevantParagraphs.push(combined);\n      }\n    }\n  });\n\n  // Segundo: capturar secciones/cards completas que contengan tasas\n  $('[class*=\"card\"], [class*=\"grid\"], [class*=\"rate\"], [class*=\"tasa\"], [class*=\"product\"], section, article').each((i, container) => {\n    const text = cleanText($(container).text());\n    if (text.length > 15 && text.length < 2000 && hasRateData(text)) {\n      if (!seen.has(text)) {\n        seen.add(text);\n        relevantParagraphs.push(text);\n      }\n    }\n  });\n\n  // Tercero: capturar elementos individuales relevantes\n  $('p, div, span, li, td, th, h1, h2, h3, h4').each((i, elem) => {\n    const text = cleanText($(elem).text());\n    // Capturar textos con porcentajes aunque sean cortos (>= 5 chars)\n    if (hasRateData(text) && text.length >= 5 && text.length < 500) {\n      if (!seen.has(text)) {\n        seen.add(text);\n        relevantParagraphs.push(text);\n      }\n    }\n    // Capturar textos relevantes por keywords\n    if (text.length > 20 && text.length < 1000 && isRelevant(text)) {\n      if (!seen.has(text)) {\n        seen.add(text);\n        relevantParagraphs.push(text);\n      }\n    }\n  });\n\n  const lists = [];\n  $('ul, ol').each((i, list) => {\n    const listText = cleanText($(list).text());\n    if ((isRelevant(listText) || hasRateData(listText)) && listText.length > 20) {\n      const items = [];\n      $(list).find('li').each((j, item) => {\n        const itemText = cleanText($(item).text());\n        if (itemText.length > 5) items.push('• ' + itemText);\n      });\n      if (items.length > 0) lists.push(items.join('\\n'));\n    }\n  });\n\n  const headings = [];\n  const pageTitle = $('title').text().trim();\n  $('h1, h2, h3, h4').each((i, heading) => {\n    const text = cleanText($(heading).text());\n    const tagName = $(heading).prop('tagName');\n    const level = parseInt(tagName.replace('H', ''));\n    if (text && text.length > 3) headings.push({ level, text });\n  });\n\n  return { tables, relevantParagraphs, lists, headings, pageTitle };\n}\n\n// Procesar HTML principal\nconst html = $input.first().json.data || $input.first().json || '';\nconst htmlStr = typeof html === 'string' ? html : JSON.stringify(html);\nconst mainResult = extractFromHtml(htmlStr);\n\n// Procesar URLs adicionales si existen\nconst extraUrlsStr = $('Add Protocol To Domain').first().json.extra_urls || '';\nconst extraResults = [];\n\nif (extraUrlsStr.trim()) {\n  const extraUrls = extraUrlsStr.split(',').map(u => u.trim()).filter(u => u);\n  for (const url of extraUrls) {\n    try {\n      console.log(`Fetching extra URL: ${url}`);\n      const controller = new AbortController();\n      const timeoutId = setTimeout(() => controller.abort(), 30000);\n      const response = await fetch(url, { headers: HEADERS, signal: controller.signal });\n      clearTimeout(timeoutId);\n      const responseText = await response.text();\n      const result = extractFromHtml(responseText);\n      extraResults.push(result);\n      console.log(`Extra URL OK: ${result.tables.length} tables, ${result.relevantParagraphs.length} paragraphs`);\n    } catch (err) {\n      console.log(`Extra URL failed (${url}): ${err.message}`);\n    }\n  }\n}\n\n// Combinar resultados de todas las URLs\nconst allTables = [...mainResult.tables, ...extraResults.flatMap(r => r.tables)];\nconst allParagraphs = [...mainResult.relevantParagraphs, ...extraResults.flatMap(r => r.relevantParagraphs)];\nconst allLists = [...mainResult.lists, ...extraResults.flatMap(r => r.lists)];\nconst allHeadings = [...mainResult.headings, ...extraResults.flatMap(r => r.headings)];\n\n// Deduplicar párrafos\nconst uniqueParagraphs = [...new Set(allParagraphs)];\n\n// Incluir headings formateados en el contenido para que el LLM los vea\nconst headingsText = allHeadings\n  .slice(0, 20)\n  .map(h => `${'#'.repeat(h.level)} ${h.text}`)\n  .join('\\n');\n\nconst optimizedText = [\n  headingsText,\n  ...uniqueParagraphs.slice(0, 50),\n  ...allLists.slice(0, 10)\n].filter(Boolean).join('\\n\\n');\n\nconst tablesText = allTables.slice(0, 10).join('\\n---\\n');\n\nreturn {\n  json: {\n    type: 'body_content',\n    title: mainResult.pageTitle,\n    headings: allHeadings.slice(0, 20),\n    tables: tablesText,\n    relevant_content: optimizedText,\n    stats: {\n      tables_found: allTables.length,\n      paragraphs_found: uniqueParagraphs.length,\n      lists_found: allLists.length,\n      extra_urls_processed: extraResults.length\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1744,
+        208
+      ],
+      "id": "extract-body-001",
+      "name": "Extract Body"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// NODO: Optimize Context for LLM\n// ============================================\n\nconst bodyData = $input.first().json;\nconst pageTitle = bodyData.title || '';\nconst headings = bodyData.headings || [];\nconst tables = bodyData.tables || '';\nconst relevantContent = bodyData.relevant_content || '';\nconst stats = bodyData.stats || {};\n\nconst bankName = pageTitle.includes('-')\n  ? pageTitle.split('-').pop().trim()\n  : pageTitle.includes('|')\n    ? pageTitle.split('|').pop().trim()\n    : pageTitle;\n\nconst headingsText = headings\n  .filter(h => h.level <= 2)\n  .map(h => `${'#'.repeat(h.level)} ${h.text}`)\n  .join('\\n');\n\nconst sections = [];\nsections.push(`# BANCO: ${bankName}`);\nif (headingsText) sections.push(`## Estructura\\n${headingsText}`);\nif (tables && tables.trim()) sections.push(`## Tablas de Tasas\\n${tables}`);\nif (relevantContent && relevantContent.trim()) {\n  const truncatedContent = relevantContent.length > 8000\n    ? relevantContent.substring(0, 8000) + '...'\n    : relevantContent;\n  sections.push(`## Información Relevante\\n${truncatedContent}`);\n}\n\nconst compactContext = sections.join('\\n\\n');\nconst optimizedSize = compactContext.length;\n\nreturn {\n  json: {\n    metadata: {\n      extraction_date: new Date().toISOString(),\n      page_title: pageTitle,\n      bank_name: bankName,\n      optimized: true\n    },\n    compact_context: compactContext,\n    optimization_stats: {\n      tables_found: stats.tables_found || 0,\n      paragraphs_found: stats.paragraphs_found || 0,\n      final_chars: optimizedSize,\n      estimated_tokens: Math.ceil(optimizedSize / 4)\n    }\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1952,
+        208
+      ],
+      "id": "optimize-context-001",
+      "name": "Optimize Context for LLM"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "haspdf-cond1",
+              "leftValue": "={{ $('Add Protocol To Domain').item.json.has_pdf }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "haspdf-cond2",
+              "leftValue": "={{ $('Add Protocol To Domain').item.json.pdf_url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "ignoreCase": false
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1152,
+        -96
+      ],
+      "id": "process-pdf-001",
+      "name": "Has PDF?"
+    },
+    {
+      "parameters": {
+        "url": "={{ (() => { const url = $('Add Protocol To Domain').item.json.pdf_url; const match = url.match(/drive\\.google\\.com\\/file\\/d\\/([^/]+)/); if (match) return 'https://drive.google.com/uc?export=download&id=' + match[1]; return url; })() }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={{ (() => { const url = $('Add Protocol To Domain').item.json.pdf_url; const isGDrive = url.includes('drive.google.com'); if (isGDrive) return JSON.stringify({ 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', 'Accept': '*/*' }); return JSON.stringify({ 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', 'Accept': 'application/pdf,text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8', 'Referer': $('Add Protocol To Domain').item.json.finalUrl, 'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8', 'Sec-Fetch-Dest': 'document', 'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-Site': 'same-origin' }); })() }}",
+        "options": {
+          "redirect": {
+            "redirect": {
+              "maxRedirects": 5
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1344,
+        -208
+      ],
+      "id": "extract-pdf-001",
+      "name": "Extract PDF File",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "pdf-blocked-cond",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1552,
+        -208
+      ],
+      "id": "pdf-blocked-001",
+      "name": "PDF Blocked?"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.scraperapi.com/?api_key=2cad0b340b1da2b4dc6796b8e68b5c64&url={{ encodeURIComponent((() => { const url = $('Add Protocol To Domain').item.json.pdf_url; const match = url.match(/drive\\.google\\.com\\/file\\/d\\/([^/]+)/); if (match) return 'https://drive.google.com/uc?export=download&id=' + match[1]; return url; })()) }}&render=true&country_code=co",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\n  \"User-Agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\",\n  \"Accept\": \"application/pdf,*/*\"\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1744,
+        -320
+      ],
+      "id": "browserless-001",
+      "name": "ScraperAPI PDF Fallback",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "document",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "text": "Extrae SOLO información de tasas de CRÉDITO DE VEHÍCULO en Colombia de este PDF bancario.\n\nEXTRAE:\n- Tasas E.A. (Efectivo Anual) para créditos de vehículo\n- Diferencia entre vehículo nuevo y usado\n- Diferencia entre automóvil y moto (si aplica)\n- Plazos, montos, condiciones, requisitos\n- Porcentaje de financiación\n- Antigüedad máxima del vehículo (para usados)\n\nIGNORA COMPLETAMENTE:\n- Créditos hipotecarios / de vivienda\n- Leasing habitacional\n- Créditos de consumo o libranza\n- Tarjetas de crédito\n- Información legal/regulatoria genérica\n\nFORMATO: Devuelve tablas en Markdown con columnas:\n| Tipo Vehículo | Nuevo/Usado | Tasa E.A. | Plazo Máx | Monto Máx | Financiación |\n\nSi hay condiciones, requisitos o beneficios adicionales, inclúyelos debajo de cada tabla.",
+        "inputType": "binary",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        2144,
+        -192
+      ],
+      "id": "analyze-doc-001",
+      "name": "Analyze PDF Document",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "ujFBYEOcjREfO4ui",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fix MIME type for PDFs downloaded from Google Drive\n// Google Drive returns application/octet-stream instead of application/pdf\nconst items = $input.all();\nfor (const item of items) {\n  if (item.binary) {\n    for (const key of Object.keys(item.binary)) {\n      const bin = item.binary[key];\n      if (bin.mimeType === 'application/octet-stream') {\n        const fileName = (bin.fileName || '').toLowerCase();\n        if (fileName.endsWith('.pdf') || $('Add Protocol To Domain').item.json.pdf_url.toLowerCase().includes('.pdf') || $('Add Protocol To Domain').item.json.pdf_url.includes('drive.google.com')) {\n          bin.mimeType = 'application/pdf';\n        }\n      }\n    }\n  }\n}\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1952,
+        -192
+      ],
+      "id": "fix-pdf-mime-001",
+      "name": "Fix PDF MIME"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "no-pdf-placeholder",
+              "name": "content",
+              "value": "={\"parts\":[{\"text\":\"\"}]}",
+              "type": "string"
+            },
+            {
+              "id": "no-pdf-flag",
+              "name": "is_placeholder",
+              "value": "true",
+              "type": "boolean"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1552,
+        0
+      ],
+      "id": "no-pdf-placeholder-001",
+      "name": "No PDF (Skip)"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2352,
+        112
+      ],
+      "id": "merge-data-001",
+      "name": "Merge HTML + PDF Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// NODO: Prepare LLM Prompt - CRÉDITOS DE VEHÍCULO\n// ============================================\n\nconst allItems = $input.all();\n\nlet pdfData = '';\nlet htmlData = '';\n\nfor (const item of allItems) {\n  if (item.json?.content?.parts?.[0]?.text) {\n    pdfData = item.json.content.parts[0].text;\n  }\n  if (item.json?.compact_context) {\n    htmlData = item.json.compact_context;\n  }\n}\n\nconst bankUrl = $('Add Protocol To Domain').first().json.finalUrl || '';\nconst bancoNombre = $('Add Protocol To Domain').first().json.banco_nombre || '';\n\nconst systemPrompt = 'Eres un extractor de datos estructurados especializado EXCLUSIVAMENTE en tasas de créditos de VEHÍCULO en Colombia.\\n\\nRESPONDE ÚNICAMENTE con un array JSON válido. Sin explicaciones, sin markdown, sin backticks.\\n\\n## REGLAS ESTRICTAS DE EXTRACCIÓN\\n\\n1. SOLO créditos de VEHÍCULO (automóvil, moto, camión, etc.)\\n2. EXCLUYE SIEMPRE: créditos hipotecarios, vivienda, leasing habitacional, consumo, libranza, tarjetas de crédito\\n3. Cada combinación ÚNICA de tipo_vehiculo (nuevo/usado) + categoría (automóvil/moto) = un objeto JSON separado\\n4. Las tasas DEBEN ser E.A. (Efectivo Anual)\\n5. Si un campo no tiene información, usa null (NUNCA string vacío \"\")\\n6. Si hay rango de tasas (\"desde X% hasta Y%\"), usa rate_range con min y max\\n\\n## VALORES EXACTOS PERMITIDOS (usa EXACTAMENTE estos strings)\\n\\n- credit_type: \"Crédito de vehículo\" (SIEMPRE este valor exacto)\\n- vehicle_type: \"Nuevo\" | \"Usado\" | \"Ambos\"\\n- vehicle_category: \"Automóvil\" | \"Moto\" | \"Ambos\"\\n- rate_denomination: \"Pesos\" (SIEMPRE Pesos para vehículos)\\n- rate_type: \"Tasa efectiva anual\" (SIEMPRE este valor exacto)\\n- payment_type: \"Cuota fija\" | \"Cuota variable\" | null\\n\\n## FORMATO DE TASA\\n\\n- Formato: \"X.XX%\" (ejemplo: \"12.50%\")\\n- SIEMPRE usa punto decimal, NUNCA coma\\n- SIEMPRE incluye el símbolo %\\n\\n## ESQUEMA JSON\\n\\n{\\n  \"bank\": \"string (nombre oficial del banco)\",\\n  \"credit_type\": \"Crédito de vehículo\",\\n  \"vehicle_type\": \"Nuevo\" | \"Usado\" | \"Ambos\",\\n  \"vehicle_category\": \"Automóvil\" | \"Moto\" | \"Ambos\",\\n  \"rate_denomination\": \"Pesos\",\\n  \"rate_type\": \"Tasa efectiva anual\",\\n  \"rate\": \"string (ej: 14.50%)\",\\n  \"rate_range\": {\"min\": \"string\", \"max\": \"string\"} | null,\\n  \"description\": \"string corta\",\\n  \"conditions\": [\"string\", ...] | null,\\n  \"requirements\": [\"string\", ...] | null,\\n  \"min_amount\": \"string\" | null,\\n  \"max_amount\": \"string\" | null,\\n  \"max_term\": \"string (ej: 7 años)\" | null,\\n  \"payment_type\": \"Cuota fija\" | \"Cuota variable\" | null,\\n  \"additional_info\": {\\n    \"financiacion_maxima\": \"string\" | null,\\n    \"antiguedad_maxima\": \"string (ej: 10 años)\" | null,\\n    \"seguro_obligatorio\": \"string\" | null,\\n    \"descuento_nomina\": \"string\" | null\\n  } | null\\n}\\n\\n## EJEMPLO DE RESPUESTA CORRECTA\\n\\n[\\n  {\\n    \"bank\": \"Bancolombia\",\\n    \"credit_type\": \"Crédito de vehículo\",\\n    \"vehicle_type\": \"Nuevo\",\\n    \"vehicle_category\": \"Automóvil\",\\n    \"rate_denomination\": \"Pesos\",\\n    \"rate_type\": \"Tasa efectiva anual\",\\n    \"rate\": \"14.50%\",\\n    \"rate_range\": null,\\n    \"description\": \"Crédito para compra de vehículo nuevo\",\\n    \"conditions\": [\"Financiación hasta el 80% del valor comercial\", \"Plazo máximo 84 meses\"],\\n    \"requirements\": [\"Ingresos desde 2 SMMLV\", \"Documento de identidad\"],\\n    \"min_amount\": null,\\n    \"max_amount\": \"$200,000,000\",\\n    \"max_term\": \"7 años\",\\n    \"payment_type\": \"Cuota fija\",\\n    \"additional_info\": {\\n      \"financiacion_maxima\": \"80%\",\\n      \"antiguedad_maxima\": null,\\n      \"seguro_obligatorio\": \"Seguro todo riesgo obligatorio\",\\n      \"descuento_nomina\": \"+100 pbs con Cuenta de Nómina\"\\n    }\\n  },\\n  {\\n    \"bank\": \"Bancolombia\",\\n    \"credit_type\": \"Crédito de vehículo\",\\n    \"vehicle_type\": \"Usado\",\\n    \"vehicle_category\": \"Automóvil\",\\n    \"rate_denomination\": \"Pesos\",\\n    \"rate_type\": \"Tasa efectiva anual\",\\n    \"rate\": \"16.90%\",\\n    \"rate_range\": null,\\n    \"description\": \"Crédito para compra de vehículo usado\",\\n    \"conditions\": [\"Antigüedad máxima 10 años\", \"Financiación hasta el 70%\"],\\n    \"requirements\": [\"Ingresos desde 2 SMMLV\"],\\n    \"min_amount\": null,\\n    \"max_amount\": \"$150,000,000\",\\n    \"max_term\": \"6 años\",\\n    \"payment_type\": \"Cuota fija\",\\n    \"additional_info\": {\\n      \"financiacion_maxima\": \"70%\",\\n      \"antiguedad_maxima\": \"10 años\",\\n      \"seguro_obligatorio\": \"Seguro todo riesgo obligatorio\",\\n      \"descuento_nomina\": null\\n    }\\n  }\\n]';\n\nconst userPrompt = 'BANCO: ' + (bancoNombre || 'Identificar del contenido') + '\\nURL: ' + bankUrl + '\\n\\n' + (pdfData ? '=== DATOS DEL PDF ===\\n' + pdfData + '\\n\\n' : '') + '=== DATOS DE LA PÁGINA WEB ===\\n' + htmlData + '\\n\\nExtrae TODOS los créditos de VEHÍCULO disponibles.\\nRecuerda:\\n- Cada combinación Nuevo/Usado + Automóvil/Moto = un objeto separado\\n- SOLO créditos de vehículo (NO vivienda, NO consumo, NO leasing habitacional)\\n- Responde SOLO con el array JSON';\n\nreturn {\n  json: {\n    system_prompt: systemPrompt,\n    user_prompt: userPrompt,\n    messages: [\n      { role: 'system', content: systemPrompt },\n      { role: 'user', content: userPrompt }\n    ]\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2544,
+        112
+      ],
+      "id": "prepare-prompt-001",
+      "name": "Prepare LLM Prompt"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "={{ $json.user_prompt }}"
+            },
+            {
+              "role": "system",
+              "content": "={{ $json.system_prompt }}"
+            }
+          ]
+        },
+        "simplify": "={{ true }}",
+        "builtInTools": {},
+        "options": {
+          "temperature": 0
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        2752,
+        112
+      ],
+      "id": "gpt41-001",
+      "name": "GPT-4.1",
+      "credentials": {
+        "openAiApi": {
+          "id": "f53Aggp0OmXdCukb",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// NODO: Validate & Parse Response - CRÉDITOS DE VEHÍCULO\n// ============================================\n\nconst llmResponse = $input.first().json;\n\nlet jsonText = '';\nif (\n  llmResponse &&\n  llmResponse.output &&\n  Array.isArray(llmResponse.output) &&\n  llmResponse.output[0]?.content?.[0]?.text\n) {\n  jsonText = llmResponse.output[0].content[0].text;\n} else {\n  throw new Error('Formato de respuesta OpenAI no reconocido');\n}\n\njsonText = jsonText\n  .replace(/\\`\\`\\`json\\n?/g, '')\n  .replace(/\\`\\`\\`\\n?/g, '')\n  .trim();\n\nconst arrayMatch = jsonText.match(/\\[\\s*\\{[\\s\\S]*\\}\\s*\\]/);\nif (arrayMatch) {\n  jsonText = arrayMatch[0];\n}\n\nlet cleanData;\ntry {\n  cleanData = JSON.parse(jsonText);\n} catch (error) {\n  throw new Error('Error parsing JSON: ' + error.message + '\\nTexto: ' + jsonText.substring(0, 500));\n}\n\nif (!Array.isArray(cleanData)) {\n  if (typeof cleanData === 'object' && cleanData !== null) {\n    cleanData = [cleanData];\n  } else {\n    throw new Error('La respuesta no es un array o objeto válido');\n  }\n}\n\n// ============================================\n// VALIDACIÓN Y NORMALIZACIÓN - VEHÍCULOS\n// ============================================\nconst VALID_VEHICLE_TYPE = ['Nuevo', 'Usado', 'Ambos'];\nconst VALID_VEHICLE_CATEGORY = ['Automóvil', 'Moto', 'Ambos'];\nconst CREDIT_TYPE = 'Crédito de vehículo';\nconst RATE_TYPE = 'Tasa efectiva anual';\n\nconst validated = cleanData\n  .filter(item => {\n    if (!item.bank || (!item.rate && !item.rate_range)) return false;\n    const ct = (item.credit_type || '').toLowerCase();\n    // Rechazar productos que NO sean de vehículo\n    if (ct.includes('hipotecario') || ct.includes('vivienda') ||\n        ct.includes('consumo') || ct.includes('libranza') ||\n        ct.includes('tarjeta') || ct.includes('leasing')) {\n      return false;\n    }\n    return true;\n  })\n  .map(item => {\n    item.credit_type = CREDIT_TYPE;\n    item.rate_type = RATE_TYPE;\n    item.rate_denomination = 'Pesos';\n\n    // Normalizar vehicle_type\n    let vt = (item.vehicle_type || '').trim();\n    const vtLower = vt.toLowerCase();\n    if (vtLower.includes('nuevo') || vtLower === 'new') {\n      vt = 'Nuevo';\n    } else if (vtLower.includes('usado') || vtLower === 'used') {\n      vt = 'Usado';\n    } else if (vtLower.includes('ambos') || vtLower.includes('aplica')) {\n      vt = 'Ambos';\n    }\n    if (!VALID_VEHICLE_TYPE.includes(vt)) vt = 'Ambos';\n    item.vehicle_type = vt;\n\n    // Normalizar vehicle_category\n    let vc = (item.vehicle_category || '').trim();\n    const vcLower = vc.toLowerCase();\n    if (vcLower.includes('auto') || vcLower.includes('carro') || vcLower.includes('camioneta')) {\n      vc = 'Automóvil';\n    } else if (vcLower.includes('moto')) {\n      vc = 'Moto';\n    } else if (vcLower.includes('ambos') || vcLower.includes('aplica')) {\n      vc = 'Ambos';\n    }\n    if (!VALID_VEHICLE_CATEGORY.includes(vc)) vc = 'Ambos';\n    item.vehicle_category = vc;\n\n    // Normalizar rate\n    let rate = (item.rate || '').trim();\n    rate = rate.replace(/(\\d),(\\d)/g, '$1.$2');\n    if (rate && !rate.includes('%')) rate += '%';\n    item.rate = rate;\n\n    // Normalizar payment_type\n    if (item.payment_type) {\n      const pt = item.payment_type.toLowerCase();\n      if (pt.includes('fij')) item.payment_type = 'Cuota fija';\n      else if (pt.includes('variabl')) item.payment_type = 'Cuota variable';\n      else item.payment_type = null;\n    }\n\n    // Asegurar arrays\n    if (item.conditions && !Array.isArray(item.conditions)) {\n      item.conditions = [String(item.conditions)];\n    }\n    if (item.requirements && !Array.isArray(item.requirements)) {\n      item.requirements = [String(item.requirements)];\n    }\n\n    // Convertir strings vacíos a null\n    for (const key of Object.keys(item)) {\n      if (item[key] === '' || item[key] === 'N/A' || item[key] === 'n/a') {\n        item[key] = null;\n      }\n    }\n\n    return item;\n  });\n\nif (validated.length === 0) {\n  return [{\n    json: {\n      _error: true,\n      _message: 'No se encontraron productos de vehículo válidos',\n      _raw_response: jsonText.substring(0, 500)\n    }\n  }];\n}\n\nconsole.log('Productos vehículo válidos: ' + validated.length);\nvalidated.forEach(v => console.log('  ' + v.bank + ' - ' + v.vehicle_type + ' - ' + v.vehicle_category + ': ' + v.rate));\n\nreturn validated.map(item => ({ json: item }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3024,
+        112
+      ],
+      "id": "validate-parse-001",
+      "name": "Validate & Parse Response"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// NODO: Prepare For Output - CRÉDITOS DE VEHÍCULO\n// Sin lógica UVR (vehículos solo usan Pesos)\n// ============================================\n\nconst items = $input.all().map(i => i.json);\n\nif (items.length === 1 && items[0]._error) {\n  console.log('Skipping bank - no valid products:', items[0]._message);\n  return [];\n}\n\nconst domainsNode = $('Add Protocol To Domain').first().json;\nconst page_url = domainsNode.finalUrl;\nconst pdf_url = domainsNode.pdf_url;\n\nfunction normalizeForId(text) {\n  if (!text) return '';\n  return text\n    .toString()\n    .toLowerCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/\\s+/g, '')\n    .replace(/_+/g, '')\n    .replace(/-+/g, '')\n    .replace(/[^a-z0-9%.]/g, '')\n    .trim();\n}\n\nfunction generateUniqueId(banco, tipoCredito, vehicleType, vehicleCategory) {\n  const parts = [\n    normalizeForId(banco),\n    normalizeForId(tipoCredito),\n    normalizeForId(vehicleType),\n    normalizeForId(vehicleCategory),\n  ].filter(p => p);\n  return parts.join('__');\n}\n\nfunction obtenerFechaHoraColombia() {\n  const opciones = { timeZone: 'America/Bogota', hour12: false };\n  const fechaHora = new Date().toLocaleString('sv-SE', opciones).replace(' ', 'T');\n  const [fecha, hora] = fechaHora.split('T');\n  return { fecha, hora };\n}\n\nconst { fecha, hora } = obtenerFechaHoraColombia();\n\nlet result = items.map(item => {\n  const banco = item.bank || '';\n  const tipoCredito = item.credit_type || 'Crédito de vehículo';\n  const vehicleType = item.vehicle_type || 'Ambos';\n  const vehicleCategory = item.vehicle_category || 'Ambos';\n  const tasaTexto = item.rate || '';\n\n  const idUnico = generateUniqueId(banco, tipoCredito, vehicleType, vehicleCategory);\n\n  return {\n    id_unico: idUnico,\n    banco: banco,\n    tipo_credito: tipoCredito,\n    tipo_vivienda: '',\n    denominacion: 'Pesos',\n    tipo_tasa: item.rate_type || 'Tasa efectiva anual',\n    tasa: tasaTexto,\n    tasa_final: '',\n    uvr_variacion_anual: '',\n    tasa_minima: item.rate_range?.min || '',\n    tasa_maxima: item.rate_range?.max || '',\n    monto_minimo: item.min_amount || '',\n    monto_maximo: item.max_amount || '',\n    plazo_maximo: item.max_term || '',\n    tipo_pago: item.payment_type || '',\n    descripcion: item.description || '',\n    condiciones: Array.isArray(item.conditions) ? item.conditions.join('; ') : (item.conditions || ''),\n    requisitos: Array.isArray(item.requirements) ? item.requirements.join('; ') : (item.requirements || ''),\n    descuento_nomina: item.additional_info?.descuento_nomina || '',\n    beneficio_avaluo: item.additional_info?.seguro_obligatorio || '',\n    fecha_extraccion: fecha,\n    hora_extraccion: hora,\n    url_pagina: page_url || '',\n    url_pdf: pdf_url || ''\n  };\n});\n\nconst unique = {};\nresult.forEach(item => {\n  if (!unique[item.id_unico]) {\n    unique[item.id_unico] = item;\n  }\n});\n\nreturn Object.values(unique).map(r => ({ json: r }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3168,
+        112
+      ],
+      "id": "prepare-output-001",
+      "name": "Prepare For Output",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1yUR0Tow3yrbSemyzmsqDY4VoF113wrxfCwVDhSTOsoM",
+          "mode": "list",
+          "cachedResultName": "BankScrappedData",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1yUR0Tow3yrbSemyzmsqDY4VoF113wrxfCwVDhSTOsoM/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "DataVehiculo",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "id_unico",
+              "displayName": "id_unico",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "banco",
+              "displayName": "banco",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tipo_credito",
+              "displayName": "tipo_credito",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tipo_vivienda",
+              "displayName": "tipo_vivienda",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "denominacion",
+              "displayName": "denominacion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tipo_tasa",
+              "displayName": "tipo_tasa",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tasa",
+              "displayName": "tasa",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tasa_final",
+              "displayName": "tasa_final",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "uvr_variacion_anual",
+              "displayName": "uvr_variacion_anual",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tasa_minima",
+              "displayName": "tasa_minima",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tasa_maxima",
+              "displayName": "tasa_maxima",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "monto_minimo",
+              "displayName": "monto_minimo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "monto_maximo",
+              "displayName": "monto_maximo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "plazo_maximo",
+              "displayName": "plazo_maximo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tipo_pago",
+              "displayName": "tipo_pago",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "descripcion",
+              "displayName": "descripcion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "condiciones",
+              "displayName": "condiciones",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "requisitos",
+              "displayName": "requisitos",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "descuento_nomina",
+              "displayName": "descuento_nomina",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "beneficio_avaluo",
+              "displayName": "beneficio_avaluo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "fecha_extraccion",
+              "displayName": "fecha_extraccion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "hora_extraccion",
+              "displayName": "hora_extraccion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "url_pagina",
+              "displayName": "url_pagina",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "url_pdf",
+              "displayName": "url_pdf",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3344,
+        0
+      ],
+      "id": "append-sheets-001",
+      "name": "Append to Google Sheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "rWJE0ntmYwzYmIeB",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_URL || 'https://gap-jaguar-cancel-protect.trycloudflare.com' }}/api/scraping/ingest",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.N8N_API_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1MmEzNmFiYS1iMmMyLTRmZGMtOTRjZS1iYjcyZDQwNDFhNGMiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzcwNTczNTEyfQ.q88vwGjnYGV8Ahm6reKa93IFdttaWu6z_pqlCnFNeDQ' }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        3552,
+        0
+      ],
+      "id": "send-api-001",
+      "name": "Send to NestJS API",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pasar al siguiente banco\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3744,
+        208
+      ],
+      "id": "wait-between-001",
+      "name": "Wait 3s Between Banks"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// NODO: Execution Summary\n// Resumen después de procesar todos los bancos\n// ============================================\n\nconst allBanks = $('Filter Active Banks').all();\nconst totalBanks = allBanks.length;\n\nconst opciones = { timeZone: 'America/Bogota', hour12: false };\nconst fechaHora = new Date().toLocaleString('sv-SE', opciones).replace(' ', 'T');\nconst [fecha, hora] = fechaHora.split('T');\n\nconst summary = {\n  execution_date: fecha,\n  execution_time: hora,\n  total_banks_processed: totalBanks,\n  banks_list: allBanks.map(b => b.json.banco || b.json.url).join(', '),\n  status: 'completed',\n  message: `Scraping completado: ${totalBanks} bancos procesados el ${fecha} a las ${hora} (hora Colombia)`\n};\n\nconsole.log(summary.message);\n\nreturn { json: summary };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        656,
+        496
+      ],
+      "id": "summary-001",
+      "name": "Execution Summary"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Daily 6AM Bogota": {
+      "main": [
+        [
+          {
+            "node": "Read Bank URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Bank URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Bank URLs": {
+      "main": [
+        [
+          {
+            "node": "Filter Active Banks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Active Banks": {
+      "main": [
+        [
+          {
+            "node": "Restore Bank Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore Bank Items": {
+      "main": [
+        [
+          {
+            "node": "Process Banks One by One",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Banks One by One": {
+      "main": [
+        [
+          {
+            "node": "Set Bank Variables",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execution Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Bank Variables": {
+      "main": [
+        [
+          {
+            "node": "Add Protocol To Domain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Protocol To Domain": {
+      "main": [
+        [
+          {
+            "node": "Has PDF?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract Page Structure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Page Structure": {
+      "main": [
+        [
+          {
+            "node": "HTML Blocked?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML Blocked?": {
+      "main": [
+        [
+          {
+            "node": "Extract Body",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ScraperAPI Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ScraperAPI Fallback": {
+      "main": [
+        [
+          {
+            "node": "Extract Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Body": {
+      "main": [
+        [
+          {
+            "node": "Optimize Context for LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Optimize Context for LLM": {
+      "main": [
+        [
+          {
+            "node": "Merge HTML + PDF Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Has PDF?": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF File",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No PDF (Skip)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF File": {
+      "main": [
+        [
+          {
+            "node": "PDF Blocked?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PDF Blocked?": {
+      "main": [
+        [
+          {
+            "node": "ScraperAPI PDF Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fix PDF MIME",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ScraperAPI PDF Fallback": {
+      "main": [
+        [
+          {
+            "node": "Fix PDF MIME",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fix PDF MIME": {
+      "main": [
+        [
+          {
+            "node": "Analyze PDF Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze PDF Document": {
+      "main": [
+        [
+          {
+            "node": "Merge HTML + PDF Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No PDF (Skip)": {
+      "main": [
+        [
+          {
+            "node": "Merge HTML + PDF Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge HTML + PDF Data": {
+      "main": [
+        [
+          {
+            "node": "Prepare LLM Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare LLM Prompt": {
+      "main": [
+        [
+          {
+            "node": "GPT-4.1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GPT-4.1": {
+      "main": [
+        [
+          {
+            "node": "Validate & Parse Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate & Parse Response": {
+      "main": [
+        [
+          {
+            "node": "Prepare For Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare For Output": {
+      "main": [
+        [
+          {
+            "node": "Append to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append to Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Send to NestJS API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send to NestJS API": {
+      "main": [
+        [
+          {
+            "node": "Wait 3s Between Banks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 3s Between Banks": {
+      "main": [
+        [
+          {
+            "node": "Process Banks One by One",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "timezone": "America/Bogota",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "versionId": "vehicle-v1-1773858751086",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1618e2f459f31c8fc5b2c8230db6ae5636ce6f0cb05a8124de87b1bf1e2d6588"
+  },
+  "id": "VEHICLE_SCRAPPER_001",
+  "tags": []
+}

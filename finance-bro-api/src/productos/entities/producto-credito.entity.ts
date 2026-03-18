@@ -36,12 +36,12 @@ export class ProductoCredito {
   @Column()
   tipo_credito_id: string;
 
-  @ManyToOne(() => TipoVivienda)
+  @ManyToOne(() => TipoVivienda, { nullable: true })
   @JoinColumn({ name: 'tipo_vivienda_id' })
   tipo_vivienda: TipoVivienda;
 
-  @Column()
-  tipo_vivienda_id: string;
+  @Column({ nullable: true })
+  tipo_vivienda_id: string | null;
 
   @ManyToOne(() => Denominacion)
   @JoinColumn({ name: 'denominacion_id' })

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { DollarSign, Calendar, Home, Banknote, ArrowUpDown, Info, RotateCcw } from "lucide-react";
+import { DollarSign, Calendar, ArrowUpDown, Info, RotateCcw, Car, Bike } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,40 +17,38 @@ import {
 } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 
-interface CreditFiltersProps {
-  onFilterChange: (filters: FilterState) => void;
+interface VehicleFiltersProps {
+  onFilterChange: (filters: VehicleFilterState) => void;
 }
 
-export interface FilterState {
+export type VehicleType = "all" | "auto" | "moto";
+
+export interface VehicleFilterState {
   amount: number;
   term: number;
-  propertyType: string;
-  housingType?: string;
-  denomination?: string;
   sortBy: string;
+  vehicleType: VehicleType;
 }
 
-const MIN_AMOUNT = 20000000;
-const MAX_AMOUNT = 10000000000;
-const MIN_TERM = 5;
-const MAX_TERM = 30;
+const MIN_AMOUNT = 5000000;
+const MAX_AMOUNT = 500000000;
+const MIN_TERM = 1;
+const MAX_TERM = 8;
 
-const DEFAULT_FILTERS: FilterState = {
-  amount: 200000000,
-  term: 20,
-  propertyType: "all",
-  housingType: "vis",
-  denomination: "all",
+const DEFAULT_FILTERS: VehicleFilterState = {
+  amount: 50000000,
+  term: 5,
   sortBy: "rate",
+  vehicleType: "all",
 };
 
-export function CreditFilters({ onFilterChange }: CreditFiltersProps) {
+export function VehicleFilters({ onFilterChange }: VehicleFiltersProps) {
   const { toast } = useToast();
-  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
-  const [amountInput, setAmountInput] = useState<string>("200000000");
-  const [termInput, setTermInput] = useState<string>("20");
+  const [filters, setFilters] = useState<VehicleFilterState>(DEFAULT_FILTERS);
+  const [amountInput, setAmountInput] = useState<string>("50000000");
+  const [termInput, setTermInput] = useState<string>("5");
 
-  const handleChange = (key: keyof FilterState, value: number | string) => {
+  const handleChange = (key: keyof VehicleFilterState, value: number | string) => {
     const newFilters = { ...filters, [key]: value };
     setFilters(newFilters);
     onFilterChange(newFilters);
@@ -93,7 +91,7 @@ export function CreditFilters({ onFilterChange }: CreditFiltersProps) {
 
     if (numValue < MIN_TERM) {
       validatedValue = MIN_TERM;
-      toast({ title: "Plazo ajustado", description: `El plazo mínimo es ${MIN_TERM} años.`, variant: "destructive" });
+      toast({ title: "Plazo ajustado", description: `El plazo mínimo es ${MIN_TERM} año.`, variant: "destructive" });
     } else if (numValue > MAX_TERM) {
       validatedValue = MAX_TERM;
       toast({ title: "Plazo ajustado", description: `El plazo máximo es ${MAX_TERM} años.`, variant: "destructive" });
@@ -110,16 +108,16 @@ export function CreditFilters({ onFilterChange }: CreditFiltersProps) {
 
   const handleReset = () => {
     setFilters(DEFAULT_FILTERS);
-    setAmountInput("200000000");
-    setTermInput("20");
+    setAmountInput("50000000");
+    setTermInput("5");
     onFilterChange(DEFAULT_FILTERS);
   };
 
   const isFiltersModified =
-    filters.housingType !== "vis" ||
-    filters.denomination !== "all" ||
-    filters.amount !== 200000000 ||
-    filters.term !== 20;
+    filters.amount !== 50000000 ||
+    filters.term !== 5 ||
+    filters.sortBy !== "rate" ||
+    filters.vehicleType !== "all";
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("es-CO", {
@@ -146,10 +144,8 @@ export function CreditFilters({ onFilterChange }: CreditFiltersProps) {
       transition={{ duration: 0.5 }}
       className="relative overflow-hidden rounded-2xl border border-secondary/15 bg-gradient-to-br from-card via-card to-secondary/[0.03] shadow-[var(--card-shadow)]"
     >
-      {/* Top accent line */}
       <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-secondary to-transparent opacity-40" />
 
-      {/* Subtle background pattern */}
       <div className="absolute inset-0 opacity-[0.015]" style={{
         backgroundImage: `radial-gradient(circle at 1px 1px, hsl(var(--secondary)) 1px, transparent 0)`,
         backgroundSize: '24px 24px',
@@ -161,13 +157,7 @@ export function CreditFilters({ onFilterChange }: CreditFiltersProps) {
           <div className="flex items-center gap-3">
             <div className="relative">
               <div className="w-10 h-10 rounded-xl bg-foreground flex items-center justify-center shadow-lg shadow-foreground/20">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                  <rect x="2" y="4" width="6" height="2" rx="1" fill="hsl(var(--accent))" />
-                  <rect x="2" y="9" width="10" height="2" rx="1" fill="hsl(var(--accent))" opacity="0.7" />
-                  <rect x="2" y="14" width="14" height="2" rx="1" fill="hsl(var(--accent))" opacity="0.4" />
-                  <circle cx="15" cy="5" r="3" fill="hsl(var(--secondary))" />
-                  <circle cx="17" cy="10" r="2" fill="hsl(var(--secondary))" opacity="0.6" />
-                </svg>
+                <Car className="w-5 h-5" style={{ color: "hsl(var(--accent))" }} />
               </div>
             </div>
             <div>
@@ -175,7 +165,7 @@ export function CreditFilters({ onFilterChange }: CreditFiltersProps) {
                 Personaliza tu búsqueda
               </h3>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Filtra entre las opciones disponibles
+                Filtra entre las opciones de crédito vehicular
               </p>
             </div>
           </div>
@@ -192,92 +182,8 @@ export function CreditFilters({ onFilterChange }: CreditFiltersProps) {
           )}
         </div>
 
-        {/* === ROW 1: Quick toggle filters === */}
+        {/* Sort & Vehicle Type filters */}
         <div className="grid gap-6 lg:grid-cols-3 mb-8">
-          {/* Housing Type - Toggle Pills */}
-          <div className="space-y-3">
-            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <Home className="w-4 h-4 text-secondary" />
-              Tipo de vivienda
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="cursor-help">
-                    <Info className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-secondary transition-colors" />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-xs">
-                  <p className="text-sm">
-                    <strong>VIS:</strong> Vivienda de Interés Social (hasta 135 SMMLV).<br/>
-                    <strong>No VIS:</strong> Vivienda que supera el valor VIS.
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </label>
-            <div className="flex gap-2">
-              {[
-                { value: "vis", label: "VIS" },
-                { value: "no_vis", label: "No VIS" },
-              ].map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => handleChange("housingType", option.value)}
-                  className={`
-                    flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
-                    ${filters.housingType === option.value
-                      ? "bg-foreground text-primary-foreground shadow-lg shadow-foreground/20 scale-[1.02]"
-                      : "bg-muted text-muted-foreground hover:bg-border hover:text-foreground"
-                    }
-                  `}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Denomination - Toggle Pills */}
-          <div className="space-y-3">
-            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <Banknote className="w-4 h-4 text-secondary" />
-              Denominación
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="cursor-help">
-                    <Info className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-secondary transition-colors" />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-xs">
-                  <p className="text-sm">
-                    <strong>Pesos:</strong> Cuota fija o variable en COP.<br/>
-                    <strong>UVR:</strong> Indexado a inflación, tasa más baja pero cuota variable.
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </label>
-            <div className="flex gap-2">
-              {[
-                { value: "all", label: "Todos" },
-                { value: "pesos", label: "Pesos" },
-                { value: "uvr", label: "UVR" },
-              ].map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => handleChange("denomination", option.value)}
-                  className={`
-                    flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
-                    ${filters.denomination === option.value
-                      ? "bg-foreground text-primary-foreground shadow-lg shadow-foreground/20 scale-[1.02]"
-                      : "bg-muted text-muted-foreground hover:bg-border hover:text-foreground"
-                    }
-                  `}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Sort By */}
           <div className="space-y-3">
             <label className="flex items-center gap-2 text-sm font-medium text-foreground">
               <ArrowUpDown className="w-4 h-4 text-secondary" />
@@ -294,9 +200,35 @@ export function CreditFilters({ onFilterChange }: CreditFiltersProps) {
                 <SelectItem value="rate">Menor tasa</SelectItem>
                 <SelectItem value="payment">Menor mensualidad</SelectItem>
                 <SelectItem value="cat">Menor costo total</SelectItem>
-                <SelectItem value="rating">Mejor calificación</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-3">
+            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <Car className="w-4 h-4 text-secondary" />
+              Tipo de vehículo
+            </label>
+            <div className="flex gap-2">
+              {([
+                { value: "all", label: "Todos", icon: null },
+                { value: "auto", label: "Automóvil", icon: Car },
+                { value: "moto", label: "Motocicleta", icon: Bike },
+              ] as const).map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => handleChange("vehicleType", option.value)}
+                  className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border ${
+                    filters.vehicleType === option.value
+                      ? "bg-secondary text-primary-foreground border-secondary shadow-md shadow-secondary/20"
+                      : "bg-muted text-foreground border-border hover:bg-border hover:border-border"
+                  }`}
+                >
+                  {option.icon && <option.icon className="w-4 h-4" />}
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -312,7 +244,7 @@ export function CreditFilters({ onFilterChange }: CreditFiltersProps) {
           </div>
         </div>
 
-        {/* === ROW 2: Sliders === */}
+        {/* Sliders */}
         <div className="grid gap-8 lg:grid-cols-2">
           {/* Amount Slider */}
           <div className="space-y-4">
@@ -321,7 +253,7 @@ export function CreditFilters({ onFilterChange }: CreditFiltersProps) {
                 <div className="w-7 h-7 rounded-lg bg-secondary/10 flex items-center justify-center">
                   <DollarSign className="w-4 h-4 text-secondary" />
                 </div>
-                Monto del crédito
+                Valor del vehículo
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div className="cursor-help">
@@ -330,15 +262,14 @@ export function CreditFilters({ onFilterChange }: CreditFiltersProps) {
                   </TooltipTrigger>
                   <TooltipContent className="max-w-xs">
                     <p className="text-sm">
-                      <strong>VIS:</strong> Típicamente entre $50M - $180M.<br/>
-                      <strong>No VIS:</strong> Desde $180M en adelante.
+                      Valor comercial del vehículo que deseas financiar.
+                      La financiación típica es entre el 70% y 90% del valor.
                     </p>
                   </TooltipContent>
                 </Tooltip>
               </label>
             </div>
 
-            {/* Amount display + input */}
             <div className="relative">
               <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-foreground/[0.02] to-secondary/[0.03] border border-secondary/10">
                 <span className="text-secondary/60 text-sm font-medium">$</span>
@@ -348,7 +279,7 @@ export function CreditFilters({ onFilterChange }: CreditFiltersProps) {
                   onChange={handleAmountInputChange}
                   onBlur={handleAmountInputBlur}
                   className="border-0 bg-transparent p-0 h-auto text-lg font-bold text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/50"
-                  placeholder="Ingrese el monto"
+                  placeholder="Ingrese el valor"
                 />
                 <span className="text-xs font-medium text-secondary bg-secondary/10 px-2 py-1 rounded-md whitespace-nowrap">
                   COP
@@ -362,12 +293,12 @@ export function CreditFilters({ onFilterChange }: CreditFiltersProps) {
                 onValueChange={([value]) => handleSliderChange(value)}
                 min={MIN_AMOUNT}
                 max={MAX_AMOUNT}
-                step={10000000}
+                step={5000000}
                 className="py-2"
               />
               <div className="flex justify-between mt-2">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">$20M</span>
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">$10.000M</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">$5M</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">$500M</span>
               </div>
             </div>
           </div>
@@ -388,15 +319,14 @@ export function CreditFilters({ onFilterChange }: CreditFiltersProps) {
                   </TooltipTrigger>
                   <TooltipContent className="max-w-xs">
                     <p className="text-sm">
-                      Plazos cortos (5-10 años): cuotas altas, menos intereses.<br/>
-                      Plazos largos (20-30 años): cuotas bajas, más costo total.
+                      Plazos cortos (1-3 años): cuotas altas, menos intereses.<br/>
+                      Plazos largos (5-8 años): cuotas bajas, más costo total.
                     </p>
                   </TooltipContent>
                 </Tooltip>
               </label>
             </div>
 
-            {/* Term display + input */}
             <div className="relative">
               <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-foreground/[0.02] to-secondary/[0.03] border border-secondary/10">
                 <Input
@@ -423,8 +353,8 @@ export function CreditFilters({ onFilterChange }: CreditFiltersProps) {
                 className="py-2"
               />
               <div className="flex justify-between mt-2">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">5 años</span>
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">30 años</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">1 año</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">8 años</span>
               </div>
             </div>
           </div>

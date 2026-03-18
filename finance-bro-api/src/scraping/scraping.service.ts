@@ -9,6 +9,57 @@ import {
   normalizeString,
 } from '../common/utils/parsers.util';
 
+/**
+ * Mapa de alias de bancos → nombre canónico.
+ * Cuando el LLM devuelve variaciones del nombre de un banco,
+ * este mapa normaliza al nombre oficial para evitar duplicados.
+ * Las claves deben estar en minúsculas.
+ */
+const BANK_ALIASES: Record<string, string> = {
+  'santander consumer': 'Banco Santander',
+  'banco santander colombia': 'Banco Santander',
+  'banco santander colombia s.a.': 'Banco Santander',
+  'banco santander colombia sa': 'Banco Santander',
+  'santander colombia': 'Banco Santander',
+  'santander': 'Banco Santander',
+  'bancolombia s.a.': 'Bancolombia',
+  'bancolombia sa': 'Bancolombia',
+  'banco de bogota': 'Banco de Bogotá',
+  'banco de bogotá s.a.': 'Banco de Bogotá',
+  'banco de bogota s.a.': 'Banco de Bogotá',
+  'bbva colombia': 'BBVA',
+  'bbva colombia s.a.': 'BBVA',
+  'banco bbva colombia': 'BBVA',
+  'davivienda s.a.': 'Davivienda',
+  'banco davivienda': 'Davivienda',
+  'banco davivienda s.a.': 'Davivienda',
+  'banco popular s.a.': 'Banco Popular',
+  'banco de occidente s.a.': 'Banco de Occidente',
+  'banco av villas': 'AV Villas',
+  'av villas s.a.': 'AV Villas',
+  'banco av villas s.a.': 'AV Villas',
+  'scotiabank colpatria': 'Scotiabank Colpatria',
+  'scotiabank colpatria s.a.': 'Scotiabank Colpatria',
+  'banco colpatria': 'Scotiabank Colpatria',
+  'itau': 'Itaú',
+  'itaú colombia': 'Itaú',
+  'banco itau': 'Itaú',
+  'banco itaú': 'Itaú',
+  'banco gnb sudameris': 'GNB Sudameris',
+  'gnb sudameris s.a.': 'GNB Sudameris',
+  'banco pichincha': 'Banco Pichincha',
+  'banco pichincha s.a.': 'Banco Pichincha',
+  'banco caja social': 'Banco Caja Social',
+  'banco caja social s.a.': 'Banco Caja Social',
+  'banco falabella': 'Banco Falabella',
+  'banco falabella s.a.': 'Banco Falabella',
+  'banco finandina': 'Banco Finandina',
+  'banco finandina s.a.': 'Banco Finandina',
+  'bancoomeva': 'Bancoomeva',
+  'banco bancoomeva': 'Bancoomeva',
+  'bancoomeva s.a.': 'Bancoomeva',
+};
+
 @Injectable()
 export class ScrapingService {
   private readonly logger = new Logger(ScrapingService.name);
@@ -34,13 +85,23 @@ export class ScrapingService {
     this.logger.log(`Iniciando ingesta para id_unico: ${dto.id_unico}`);
 
     // ==================== PASO 1: NORMALIZACIÓN DE DATOS ====================
-    const datosNormalizados = this.normalizarDatosN8n(dto);
+    const nombreBancoCanónico = this.resolverNombreBanco(dto.banco);
+    const datosNormalizados = this.normalizarDatosN8n({
+      ...dto,
+      banco: nombreBancoCanónico,
+    });
 
     // ==================== PASO 2: BÚSQUEDA/CREACIÓN DE ENTIDAD FINANCIERA ====================
     const entidad = await this.catalogosService.getOrCreateEntidad(
       datosNormalizados.nombre_normalizado,
-      dto.banco,
+      nombreBancoCanónico,
     );
+
+    if (nombreBancoCanónico !== dto.banco.trim()) {
+      this.logger.log(
+        `Alias de banco resuelto: "${dto.banco}" → "${nombreBancoCanónico}"`,
+      );
+    }
 
     this.logger.log(`Entidad financiera: ${entidad.nombre} (ID: ${entidad.id})`);
 
@@ -216,6 +277,15 @@ export class ScrapingService {
   }
 
   /**
+   * Resuelve el nombre canónico de un banco usando el mapa de alias.
+   * Si no hay alias, devuelve el nombre original.
+   */
+  private resolverNombreBanco(nombreOriginal: string): string {
+    const key = nombreOriginal.trim().toLowerCase();
+    return BANK_ALIASES[key] ?? nombreOriginal.trim();
+  }
+
+  /**
    * Normaliza los datos crudos de n8n
    */
   private normalizarDatosN8n(dto: N8nProductoDto): {
@@ -316,7 +386,7 @@ export class ScrapingService {
    */
   private async resolverCatalogos(dto: N8nProductoDto): Promise<{
     tipoCreditoId: string;
-    tipoViviendaId: string;
+    tipoViviendaId: string | null;
     denominacionId: string;
     tipoTasaId: string;
     tipoPagoId: string | null;
@@ -336,7 +406,7 @@ export class ScrapingService {
       throw new BadRequestException(`Tipo de crédito no encontrado: ${dto.tipo_credito}`);
     }
 
-    // Mapeo de tipo_vivienda
+    // Mapeo de tipo_vivienda (nullable para créditos no hipotecarios)
     const mapeoTipoVivienda: Record<string, string> = {
       VIS: 'vis',
       'No VIS': 'no_vis',
@@ -344,11 +414,16 @@ export class ScrapingService {
       VIP: 'vip',
     };
 
-    const codigoTipoVivienda = mapeoTipoVivienda[dto.tipo_vivienda] || 'aplica_ambos';
-    const tipoVivienda = await this.catalogosService.findTipoViviendaByCodigo(codigoTipoVivienda);
+    let tipoViviendaId: string | null = null;
 
-    if (!tipoVivienda) {
-      throw new BadRequestException(`Tipo de vivienda no encontrado: ${dto.tipo_vivienda}`);
+    if (dto.tipo_vivienda && dto.tipo_vivienda.trim() && dto.tipo_vivienda !== 'No aplica') {
+      const codigoTipoVivienda = mapeoTipoVivienda[dto.tipo_vivienda] || 'aplica_ambos';
+      const tipoVivienda = await this.catalogosService.findTipoViviendaByCodigo(codigoTipoVivienda);
+
+      if (!tipoVivienda) {
+        throw new BadRequestException(`Tipo de vivienda no encontrado: ${dto.tipo_vivienda}`);
+      }
+      tipoViviendaId = tipoVivienda.id;
     }
 
     // Mapeo de denominacion
@@ -396,7 +471,7 @@ export class ScrapingService {
 
     return {
       tipoCreditoId: tipoCredito.id,
-      tipoViviendaId: tipoVivienda.id,
+      tipoViviendaId,
       denominacionId: denominacion.id,
       tipoTasaId: tipoTasa.id,
       tipoPagoId,
