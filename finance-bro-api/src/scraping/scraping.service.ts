@@ -397,6 +397,10 @@ export class ScrapingService {
       'Crédito de consumo': 'consumo',
       'Crédito de vehículo': 'vehiculo',
       'Leasing habitacional': 'leasing',
+      'Crédito educativo': 'educativo',
+      'Crédito de libre inversión': 'libre_inversion',
+      'Libre Inversión': 'libre_inversion',
+      'Crédito de Libre Inversión': 'libre_inversion',
     };
 
     const codigoTipoCredito = mapeoTipoCredito[dto.tipo_credito] || 'hipotecario';

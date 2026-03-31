@@ -1,274 +1,377 @@
-# n8n Workflow Sync Tool
+# n8n - Sistema de Automatización FinanceBro
 
-Herramienta para sincronizar workflows de n8n desde archivos JSON locales hacia tu instancia de n8n en la nube.
+Sistema de workflows de n8n para la extracción automatizada de tasas de créditos hipotecarios de bancos colombianos y su ingesta al backend API.
 
-## Descripción
+## Contenido
 
-Este script permite actualizar workflows de n8n que están en la nube utilizando archivos JSON locales. Es útil cuando trabajas con workflows versionados en Git o cuando necesitas hacer cambios locales y subirlos de forma controlada a tu instancia de n8n.
+- [Arquitectura General](#arquitectura-general)
+- [Workflows](#workflows)
+  - [TextScrapperTool - Scraping Diario](#1-textscrappertool---scraping-diario)
+  - [PDFUrlUpdater - Actualización de URLs de PDFs](#2-pdfurlupdater---actualización-de-urls-de-pdfs)
+  - [VehicleScrapperTool - Scraping de Vehículos](#3-vehiclescrappertool---scraping-de-vehículos)
+- [Sync Tool](#sync-tool)
+- [Google Sheets (Fuente de Configuración)](#google-sheets-fuente-de-configuración)
+- [Credenciales y APIs Externas](#credenciales-y-apis-externas)
+- [Solución de Problemas](#solución-de-problemas)
 
-### Características
+---
 
-- Lee workflows desde archivos JSON locales
-- Valida las credenciales de n8n desde variables de entorno
-- Verifica que el workflow existe en la nube antes de actualizar
-- Muestra una comparación entre la versión local y en la nube
-- **Sistema de backups automático**: Crea copias de seguridad antes de actualizar
-- Backups organizados por fecha con numeración automática
-- Solicita confirmación antes de realizar cambios
-- Manejo robusto de errores con mensajes claros
-- Output visual con colores en la terminal
+## Arquitectura General
 
-## Requisitos
+```
+Google Sheets (LinksVivienda)          Banco de la República API
+        │                                       │
+        │  URLs de bancos + config               │  Valor UVR actual/histórico
+        ▼                                       ▼
+┌─────────────────────────────────────────────────────┐
+│              TextScrapperTool (Diario 6AM)           │
+│                                                     │
+│  Por cada banco activo:                             │
+│                                                     │
+│  ┌──────────┐    ┌───────────┐                      │
+│  │ Rama HTML │    │ Rama PDF  │    (en paralelo)     │
+│  │           │    │           │                      │
+│  │ HTTP GET  │    │ Descarga  │                      │
+│  │    ↓      │    │    ↓      │                      │
+│  │ Bloqueado?│    │ Bloqueado?│                      │
+│  │  Sí → API │    │  Sí → API │  ← ScraperAPI        │
+│  │    ↓      │    │    ↓      │                      │
+│  │ Cheerio   │    │ Gemini    │  ← Gemini 2.5 Flash  │
+│  │ Extract   │    │ Analyze   │                      │
+│  └─────┬─────┘    └─────┬─────┘                      │
+│        └───────┬─────────┘                           │
+│                ▼                                     │
+│         Merge HTML + PDF                             │
+│                ▼                                     │
+│         GPT-4.1 (temp=0)   ← Extracción estructurada│
+│                ▼                                     │
+│         Validate & Parse                             │
+│                ▼                                     │
+│         Prepare Output (+ cálculo UVR→EA)            │
+│                ▼                                     │
+│   ┌────────────┴────────────┐                        │
+│   ▼                         ▼                        │
+│ Google Sheets            NestJS API                  │
+│ (DataVivienda)     POST /api/scraping/ingest         │
+│ (respaldo)              (principal)                  │
+└─────────────────────────────────────────────────────┘
 
-- Node.js >= 18.0.0 (para soporte nativo de `fetch`)
-- Cuenta de n8n con acceso a la API
-- API Key de n8n
+┌─────────────────────────────────────────────────────┐
+│        PDFUrlUpdater (Quincenal: 1 y 15 del mes)     │
+│                                                     │
+│  Por cada banco activo:                             │
+│    Claude Sonnet 4.6 (agente con tools)             │
+│      ├── Tool: Read Sheets (leer datos actuales)    │
+│      ├── Tool: Verify URL (HEAD request)            │
+│      └── Tool: Update Sheets (actualizar pdf_url)   │
+│                                                     │
+│  Infiere nueva URL del PDF basándose en patrones    │
+│  de naming → verifica accesibilidad → actualiza     │
+└─────────────────────────────────────────────────────┘
+```
 
-## Instalación
+---
 
-### 1. Instalar dependencias
+## Workflows
+
+### 1. TextScrapperTool - Scraping Diario
+
+**Archivo**: `TextScrapperTool.json`
+**Trigger**: Cron `0 6 * * *` (6:00 AM hora Bogotá) + trigger manual
+**Nodos**: 22+
+
+#### Flujo paso a paso
+
+| # | Nodo | Descripción |
+|---|------|-------------|
+| 1 | **Read Bank URLs** | Lee la hoja `LinksVivienda` del Google Sheet con la lista de bancos, URLs, pdf_url y flag activo |
+| 2 | **Filter Active Banks** | Filtra solo bancos con `activo = TRUE` |
+| 3 | **Fetch UVR from BanRep API** | Consulta la API del Banco de la República (serie 850) para obtener el valor UVR actual |
+| 4 | **Parse UVR API Response** | Calcula la variación porcentual anual del UVR (`(UVR_hoy / UVR_hace_1_año) - 1`) |
+| 5 | **Restore Bank Items** | Recupera la lista de bancos para el loop (el paso de UVR retorna 1 solo item) |
+| 6 | **Process Banks One by One** | SplitInBatches de 1 banco a la vez |
+| 7 | **Set Bank Variables** | Extrae: url principal, extra_urls (separadas por coma), pdf_url, banco_nombre, tipo_producto |
+| 8 | **Add Protocol To Domain** | Agrega `https://` si la URL no tiene protocolo |
+
+#### Rama HTML (extracción web)
+
+| # | Nodo | Descripción |
+|---|------|-------------|
+| 9 | **Extract Page Structure** | HTTP GET directo a la web del banco con headers de navegador |
+| 10 | **HTML Blocked?** | Si hay error → ScraperAPI como fallback (`render=true`, `country_code=co`) |
+| 11 | **Extract Body** | Cheerio parsea HTML: extrae tablas, párrafos, headings, listas con keywords de tasas hipotecarias. Soporta **multi-URL** (extra_urls) |
+| 12 | **Optimize Context for LLM** | Compacta el contenido relevante a ~8000 chars máximo para el prompt |
+
+#### Rama PDF (extracción de documentos)
+
+| # | Nodo | Descripción |
+|---|------|-------------|
+| 9b | **Has PDF?** | Verifica si el banco tiene `pdf_url` configurada |
+| 10b | **Extract PDF File** | Descarga el PDF (soporta Google Drive con conversión de URL) |
+| 11b | **PDF Blocked?** | Si falla → ScraperAPI PDF Fallback |
+| 12b | **Fix PDF MIME** | Corrige MIME type `application/octet-stream` → `application/pdf` (Google Drive) |
+| 13b | **Analyze PDF Document** | **Gemini 2.5 Flash** analiza el PDF extrayendo solo tasas de crédito hipotecario de compra de vivienda en formato markdown |
+
+#### Procesamiento con IA y salida
+
+| # | Nodo | Descripción |
+|---|------|-------------|
+| 13 | **Merge HTML + PDF Data** | Combina ambas fuentes de datos |
+| 14 | **Prepare LLM Prompt** | Construye prompt con system message que incluye: JSON schema estricto, few-shot examples, reglas de normalización, valores permitidos exactos |
+| 15 | **GPT-4.1** | Temperatura 0, extrae datos estructurados en JSON con campos normalizados |
+| 16 | **Validate & Parse Response** | Validación estricta: filtra solo hipotecarios de compra de vivienda, normaliza `housing_type` (VIS/No VIS), `rate_denomination` (UVR/Pesos), formato de tasas con punto decimal |
+| 17 | **Prepare For Output** | Genera `id_unico` (banco+tipo+vivienda+denominación normalizado), calcula `tasa_final` para UVR con fórmula `((1+spread)*(1+variaciónUVR))-1`, convierte rangos min/max de UVR a EA, agrega fecha/hora Colombia |
+| 18 | **Append to Google Sheets** | Escribe en hoja `DataVivienda` con `appendOrUpdate` por `id_unico` (respaldo) |
+| 19 | **Send to NestJS API** | `POST /api/scraping/ingest` con header `x-api-key` → PostgreSQL (destino principal) |
+| 20 | **Execution Summary** | Resumen al finalizar todos los bancos |
+
+#### Campos de salida por producto
+
+```json
+{
+  "id_unico": "bancolombia__creditohipotecarioparacompradevivienda__vis__uvr",
+  "banco": "Bancolombia",
+  "tipo_credito": "Crédito hipotecario para compra de vivienda",
+  "tipo_vivienda": "VIS",
+  "denominacion": "UVR",
+  "tipo_tasa": "Tasa efectiva anual",
+  "tasa": "UVR + 6.50%",
+  "tasa_final": "12.04%",
+  "uvr_variacion_anual": "5.20%",
+  "tasa_minima": "",
+  "tasa_maxima": "",
+  "monto_minimo": "",
+  "monto_maximo": "$262,635,750",
+  "plazo_maximo": "20 años",
+  "tipo_pago": "Cuota fija",
+  "descripcion": "Crédito hipotecario para vivienda de interés social en UVR",
+  "condiciones": "Valor comercial hasta 150 SMMLV; Financiación hasta el 80%",
+  "requisitos": "Ingresos desde 1 SMMLV; Avalúo y estudio jurídico",
+  "descuento_nomina": "+200 pbs con Cuenta de Nómina Bancolombia",
+  "beneficio_avaluo": "",
+  "fecha_extraccion": "2026-03-24",
+  "hora_extraccion": "06:15:30",
+  "url_pagina": "https://www.bancolombia.com/...",
+  "url_pdf": "https://..."
+}
+```
+
+#### Fórmula de conversión UVR a Tasa EA
+
+```
+tasa_final = ((1 + spread_banco) * (1 + variación_anual_UVR)) - 1
+
+Ejemplo:
+  spread_banco = 6.50% = 0.065
+  variación_UVR = 5.20% = 0.052
+  tasa_final = ((1.065) * (1.052)) - 1 = 0.1204 = 12.04% EA
+```
+
+---
+
+### 2. PDFUrlUpdater - Actualización de URLs de PDFs
+
+**Archivo**: `PDFUrlUpdater.json`
+**Trigger**: Cron `0 5 1,15 * *` (5:00 AM los días 1 y 15 de cada mes, hora Bogotá) + trigger manual
+**Nodos**: 12
+
+#### Problema que resuelve
+
+Los bancos colombianos publican PDFs de tasas con URLs que cambian cada mes (incluyen mes, año, versión en el nombre del archivo). Este workflow mantiene esas URLs actualizadas automáticamente.
+
+#### Flujo paso a paso
+
+| # | Nodo | Descripción |
+|---|------|-------------|
+| 1 | **Read All Banks** | Lee todos los bancos de `LinksVivienda` |
+| 2 | **Split Into Batches of 1** | Filtra activos y crea lotes de 1 banco |
+| 3 | **One Bank at a Time** | Procesa un banco a la vez |
+| 4 | **Build Resolved Prompt** | Resuelve parámetros de fecha en hora Bogotá: mes actual/anterior en múltiples formatos (minúsculas, Title Case, MAYÚSCULAS, número con cero) |
+| 5 | **Claude PDF URL Agent** | Agente **Claude Sonnet 4.6** con system prompt especializado y 3 tools |
+| 6 | **Write Log** | Registra el resultado en hoja `URL_Update_Log` |
+| 7 | **Wait 30s Between Banks** | Rate limiting entre bancos |
+
+#### Tools del agente Claude
+
+| Tool | Descripción |
+|------|-------------|
+| **Tool: Read Sheets** | Lee la lista completa de bancos con sus URLs actuales del Google Sheet |
+| **Tool: Verify URL** | HEAD request con timeout 15s para validar si una URL candidata responde HTTP 200/206 |
+| **Tool: Update Sheets** | Actualiza la columna `pdf_url` en el Sheet (match por nombre del banco) |
+
+#### Patrones de URLs que detecta
+
+| Patrón | Ejemplo |
+|--------|---------|
+| `/YYYY/MM/TASAS-MES-YYYY-N.pdf` | `/2026/03/TASAS-MARZO-2026-1.pdf` |
+| `/tasas-mes-yyyy` | `/tasas-marzo-2026` |
+| `/Actualizacion_tasas_Mes_YYYY.pdf` | `/Actualizacion_tasas_Marzo_2026.pdf` |
+| `/TASAS-DD-DE-MES-DE-YYYY.pdf` | `/TASAS-15-DE-MARZO-DE-2026.pdf` |
+| `/Tarifario-YYYY-...-N.pdf` | `/Tarifario-2026-La-Hipotecaria-Colombia-3.pdf` |
+
+#### Formato del reporte
+
+```
+✅ [banco] → [nueva URL]
+➖ [banco] → sin cambios (URL vigente)
+❌ [banco] → no encontrado (URL original conservada)
+```
+
+---
+
+### 3. VehicleScrapperTool - Scraping de Vehículos
+
+**Archivo**: `VehicleScrapperTool.json`
+**Estado**: En desarrollo
+
+---
+
+## Sync Tool
+
+Herramienta CLI para sincronizar workflows locales con la instancia de n8n en la nube.
+
+### Instalación
 
 ```bash
+cd n8n
 npm install
 ```
 
-### 2. Configurar variables de entorno
+### Configuración
 
-Crea o edita el archivo `.env` en la raíz del proyecto con las siguientes variables:
+Crear archivo `.env` en la carpeta `n8n/`:
 
 ```env
 N8N_API_KEY=tu_api_key_aqui
 N8N_HOST=https://tu-instancia.n8n.cloud
 ```
 
-#### Cómo obtener tu API Key de n8n:
+Para obtener la API Key: n8n Settings → API → Create new API Key.
 
-1. Inicia sesión en tu instancia de n8n
-2. Ve a **Settings** → **API**
-3. Crea una nueva API Key
-4. Copia el token generado y pégalo en el archivo `.env`
-
-## Uso
-
-### Sincronizar el workflow por defecto
-
-Por defecto, el script busca el archivo `TextScrapperTool.json`:
+### Uso
 
 ```bash
+# Sincronizar workflow por defecto (TextScrapperTool.json)
 npm run sync
+
+# Sincronizar un archivo específico
+node sync-workflow.js PDFUrlUpdater.json
+node sync-workflow.js VehicleScrapperTool.json
 ```
 
-### Sincronizar un archivo específico
+### Sistema de backups
 
-Puedes especificar cualquier archivo JSON de workflow:
-
-```bash
-node sync-workflow.js MiWorkflow.json
-```
-
-O también:
-
-```bash
-node sync-workflow.js path/to/otro-workflow.json
-```
-
-## Sistema de Backups
-
-El script incluye un sistema de backups automático que crea copias de seguridad del workflow en la nube antes de actualizarlo.
-
-### Estructura de los backups
-
-Los backups se organizan de la siguiente manera:
+Antes de actualizar, el script ofrece crear un backup del workflow actual en la nube:
 
 ```
 backups/
-├── 8-1-2026/
-│   ├── backup1.json
-│   ├── backup2.json
-│   └── backup3.json
-├── 9-1-2026/
+├── 24-3-2026/
 │   ├── backup1.json
 │   └── backup2.json
-└── 10-1-2026/
+└── 25-3-2026/
     └── backup1.json
 ```
 
-- **Carpetas por fecha**: Cada día se crea una carpeta con el formato `día-mes-año` (ej: `8-1-2026`)
-- **Numeración automática**: Los backups se numeran secuencialmente (backup1.json, backup2.json, etc.)
-- **Sin límite de backups**: Puedes crear tantos backups como necesites
+- Los backups se organizan por fecha con numeración automática
+- Se guardan en formato JSON legible
+- Están excluidos del control de versiones (`.gitignore`)
 
-### Cómo funcionan los backups
+Para restaurar: copiar el backup, renombrarlo al nombre del workflow, y ejecutar `npm run sync`.
 
-1. Antes de actualizar, el script pregunta: **"Do you want to create a backup before updating? (Y/n)"**
-2. Si presionas Enter o respondes "y"/"yes", se crea el backup
-3. Si respondes "n"/"no", se salta el backup
-4. El backup guarda el workflow **actual de la nube** (no el archivo local)
-5. El archivo se guarda en formato JSON con indentación legible
+---
 
-### Restaurar un backup
+## Google Sheets (Fuente de Configuración)
 
-Para restaurar un backup anterior:
+**Spreadsheet**: [BankScrappedData](https://docs.google.com/spreadsheets/d/1yUR0Tow3yrbSemyzmsqDY4VoF113wrxfCwVDhSTOsoM/edit?usp=sharing)
 
-1. Ve a la carpeta `backups/[fecha]/`
-2. Copia el archivo `backupN.json` que deseas restaurar
-3. Renómbralo a algo como `TextScrapperTool.json` o el nombre que corresponda
-4. Ejecuta el script normalmente: `npm run sync`
+### Hoja: LinksVivienda (configuración de bancos)
 
-### Notas importantes sobre backups
+| Columna | Descripción | Ejemplo |
+|---------|-------------|---------|
+| `banco` | Nombre del banco | Bancolombia |
+| `url` | URL(s) de la página de tasas (separadas por coma si son múltiples) | `https://www.bancolombia.com/...` |
+| `pdf_url` | URL del PDF de tasas (actualizada por PDFUrlUpdater) | `https://...tasas-marzo-2026.pdf` |
+| `target_url` | URL de destino alternativa | |
+| `tipo_producto` | Tipo de producto a extraer | Crédito hipotecario para compra de vivienda |
+| `activo` | Flag para incluir/excluir el banco | TRUE / FALSE |
 
-- Los backups están excluidos del control de versiones (`.gitignore`)
-- Se recomienda hacer respaldo manual de backups críticos fuera del proyecto
-- Cada backup contiene el workflow completo con todos sus nodos y configuraciones
+### Hoja: DataVivienda (datos extraídos - respaldo)
 
-## Flujo de ejecución
+Contiene todos los campos de salida del TextScrapperTool con `appendOrUpdate` por `id_unico`.
 
-Cuando ejecutas el script, realiza los siguientes pasos:
+### Hoja: URL_Update_Log (logs del PDFUrlUpdater)
 
-1. **Validación de entorno**: Verifica que `N8N_API_KEY` y `N8N_HOST` estén configurados
-2. **Lectura del archivo**: Lee y parsea el archivo JSON del workflow
-3. **Extracción del ID**: Obtiene el ID del workflow desde el JSON
-4. **Verificación en la nube**: Comprueba que el workflow existe en n8n
-5. **Comparación**: Muestra las diferencias entre local y nube
-6. **Backup (opcional)**: Te pregunta si deseas crear un backup del workflow actual
-   - Si aceptas, crea una copia en `backups/[fecha]/backup[N].json`
-   - Los backups se organizan por fecha (formato: `8-1-2026`)
-   - Numeración automática (backup1.json, backup2.json, etc.)
-7. **Confirmación**: Te pregunta si deseas continuar con la actualización
-8. **Actualización**: Si confirmas, actualiza el workflow usando la API de n8n
+| Columna | Descripción |
+|---------|-------------|
+| `fecha_ejecucion` | Fecha de ejecución (YYYY-MM-DD) |
+| `hora_ejecucion` | Hora de ejecución (HH:mm) |
+| `reporte` | Resultado por banco (actualizado/sin cambios/no encontrado) |
+| `batch` | Índice del lote |
 
-## Ejemplo de salida
+---
 
-```
-========================================
-   n8n Workflow Sync Tool
-========================================
+## Credenciales y APIs Externas
 
-[OK] Connected to: https://n8n-camilo.cloud
-[INFO] Reading workflow from: TextScrapperTool.json
+| Servicio | Uso | Workflow |
+|----------|-----|----------|
+| **Google Sheets OAuth2** | Leer configuración de bancos, escribir datos extraídos, logs | Ambos |
+| **Banco de la República API** | Valor UVR actual e histórico (serie 850) | TextScrapperTool |
+| **ScraperAPI** | Fallback para webs/PDFs con protección anti-bot (render JS, geo CO) | TextScrapperTool |
+| **Gemini 2.5 Flash** | Análisis de PDFs bancarios para extraer tablas de tasas | TextScrapperTool |
+| **OpenAI GPT-4.1** | Extracción estructurada de datos en JSON desde HTML+PDF combinados | TextScrapperTool |
+| **Anthropic Claude Sonnet 4.6** | Agente AI para inferir y verificar nuevas URLs de PDFs | PDFUrlUpdater |
+| **NestJS API** | Destino principal de los datos extraídos (PostgreSQL) | TextScrapperTool |
 
-----------------------------------------
-Workflow Details:
-  Name: TextScrapperTool
-  ID:   0TP2ZS49dTix90SW
-  Nodes: 22
-  Active: No
-----------------------------------------
+---
 
-[INFO] Checking workflow in cloud...
-[OK] Found workflow "TextScrapperTool" in cloud
-
-----------------------------------------
-Changes to apply:
-  Local name:  TextScrapperTool
-  Cloud name:  TextScrapperTool
-  Local nodes: 22
-  Cloud nodes: 20
-----------------------------------------
-
-Do you want to create a backup before updating? (Y/n): y
-
-[INFO] Creating backup of current cloud workflow...
-[OK] Backup created: backups/8-1-2026/backup1.json
-
-Do you want to update the workflow in n8n cloud? (y/N): y
-
-[INFO] Updating workflow...
-
-========================================
-   Workflow updated successfully!
-========================================
-
-  ID: 0TP2ZS49dTix90SW
-  Name: TextScrapperTool
-  Updated at: 2025-01-08T15:30:45.123Z
-  URL: https://n8n-camilo.cloud/workflow/0TP2ZS49dTix90SW
-```
-
-## Manejo de errores
-
-El script maneja varios tipos de errores comunes:
-
-| Error | Descripción |
-|-------|-------------|
-| **Missing credentials** | `N8N_API_KEY` o `N8N_HOST` no están definidos en `.env` |
-| **File not found** | El archivo JSON especificado no existe |
-| **Invalid JSON** | El archivo no contiene JSON válido |
-| **Missing workflow ID** | El JSON no contiene el campo `id` |
-| **Workflow not found** | El workflow con ese ID no existe en n8n |
-| **Connection error** | No se puede conectar al servidor de n8n |
-| **API error** | Error en la respuesta de la API de n8n |
-
-## Estructura del proyecto
+## Estructura del directorio
 
 ```
 n8n/
-├── .env                    # Variables de entorno (no versionado)
-├── .gitignore              # Archivos excluidos del control de versiones
-├── package.json            # Dependencias y scripts npm
-├── sync-workflow.js        # Script principal de sincronización
-├── TextScrapperTool.json   # Workflow de ejemplo
-├── node_modules/           # Dependencias de Node.js (no versionado)
-├── backups/                # Backups automáticos (no versionado)
-│   ├── 8-1-2026/
-│   │   ├── backup1.json
-│   │   └── backup2.json
-│   └── 9-1-2026/
-│       └── backup1.json
-└── README.md              # Este archivo
+├── TextScrapperTool.json          # Workflow principal de scraping diario
+├── PDFUrlUpdater.json             # Workflow de actualización quincenal de URLs de PDFs
+├── VehicleScrapperTool.json       # Workflow de scraping de vehículos (en desarrollo)
+├── sync-workflow.js               # CLI para sincronizar workflows a n8n Cloud
+├── package.json                   # Dependencias (dotenv)
+├── README.md                      # Este archivo
+├── README-DYNAMIC-WORKFLOW.md     # Guía del sistema dinámico multi-producto
+├── .env                           # Variables de entorno (no versionado)
+├── backups/                       # Backups automáticos (no versionado)
+│   └── [fecha]/backupN.json
+└── node_modules/                  # Dependencias (no versionado)
 ```
 
-## API de n8n utilizada
+---
 
-El script utiliza el endpoint de actualización de workflows de n8n:
+## Solución de Problemas
 
-```
-PUT /api/v1/workflows/:id
-```
+### El scraping no extrae datos de un banco
 
-**Headers requeridos:**
-```
-Content-Type: application/json
-X-N8N-API-KEY: <tu_api_key>
-```
+1. Verificar que el banco tiene `activo = TRUE` en el Sheet
+2. Verificar que la URL es accesible manualmente
+3. Si el banco tiene protección anti-bot, ScraperAPI debería manejarlo como fallback
+4. Si el banco tiene tablas renderizadas con JavaScript, ScraperAPI con `render=true` debería capturarlas
 
-**Documentación oficial**: [n8n API Documentation](https://docs.n8n.io/api/)
+### La tasa_final está vacía para productos UVR
 
-## Notas importantes
+La conversión UVR→EA requiere que la API del Banco de la República responda correctamente. Si `uvr_calculo_valido = false`, la API falló y no se puede calcular la tasa equivalente.
 
-- El script NO crea workflows nuevos, solo actualiza existentes
-- El ID del workflow debe estar presente en el archivo JSON
-- **Sistema de backups integrado**: El script te pregunta si quieres crear un backup antes de actualizar
-- Los backups se guardan automáticamente en `backups/[fecha]/backupN.json`
-- La actualización sobrescribe completamente el workflow en la nube
-- El campo `id` del JSON se usa para identificar el workflow pero no se envía en el body del request
-- Los backups NO se versionan en Git para mantener el repositorio limpio
+### El PDFUrlUpdater no encuentra la nueva URL
 
-## Solución de problemas
+- El banco puede haber cambiado su patrón de naming de PDFs
+- Verificar manualmente la URL actual del PDF y actualizar en el Sheet
+- Algunos bancos usan Google Drive (no verificables por HEAD request)
 
-### Error: "Cannot connect to n8n"
+### Error 401 en Send to NestJS API
 
-Verifica que:
-- El `N8N_HOST` en `.env` sea correcto
-- Tu instancia de n8n esté activa y accesible
-- No haya problemas de red o firewall
+- Verificar que `N8N_API_KEY` en las variables de entorno de n8n coincida con la del backend
+- Verificar que el backend esté corriendo y accesible desde n8n
 
-### Error: "Workflow not found"
+### Error de conexión al sincronizar workflows
 
-Asegúrate de que:
-- El ID en el archivo JSON corresponda a un workflow existente
-- La API Key tenga permisos para acceder a ese workflow
+- Verificar `N8N_HOST` y `N8N_API_KEY` en el `.env` local
+- Verificar que la instancia de n8n Cloud esté activa
 
-### Error: "Invalid JSON"
+---
 
-Revisa que:
-- El archivo JSON esté bien formado
-- No haya caracteres especiales que rompan el formato
-- El archivo se exportó correctamente desde n8n
-
-## Contribuciones
-
-Este es un proyecto interno, pero se aceptan mejoras y sugerencias.
-
-## Licencia
-
-Proyecto interno - Uso exclusivo del equipo de FinanceBro.
+**Última actualización**: Marzo 2026

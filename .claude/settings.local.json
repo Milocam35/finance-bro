@@ -8,7 +8,20 @@
       "Bash(else echo \"No existe repositorio en finance-hub-main\")",
       "Bash(fi)",
       "Bash(npm install:*)",
-      "Bash(del *.webp)"
+      "Bash(del *.webp)",
+      "mcp__n8n-mcp__*"
     ]
+  },
+  "enableAllProjectMcpServers": true,
+  "extraKnownMarketplaces": {
+    "n8n-skills": {
+      "source": {
+        "source": "github",
+        "repo": "czlonkowski/n8n-skills"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "n8n-mcp-skills@n8n-skills": true
   }
 }

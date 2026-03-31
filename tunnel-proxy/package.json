@@ -1,0 +1,14 @@
+{
+  "name": "tunnel-proxy",
+  "version": "1.0.0",
+  "description": "Reverse proxy to expose NestJS API + Playwright PDF Service through a single Cloudflare tunnel",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "tunnel": "cloudflared tunnel --url http://localhost:3002"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "http-proxy-middleware": "^3.0.0"
+  }
+}

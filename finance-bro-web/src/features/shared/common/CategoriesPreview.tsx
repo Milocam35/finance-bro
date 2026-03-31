@@ -7,7 +7,7 @@ const categories = [
     icon: Building,
     title: "Créditos",
     description: "Hipotecarios, personales, automotriz y más. Compara tasas y encuentra el mejor.",
-    items: ["Hipotecarios", "Personales", "Automotriz", "Empresariales"],
+    items: ["Hipotecarios", "Personales", "Automotriz", "Educativos", "Empresariales"],
     color: "primary",
     available: true,
     image: "/images/index/creditos.webp",

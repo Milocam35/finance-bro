@@ -13,6 +13,9 @@ pnpm-debug.log*
 .env.test.local
 .env.production.local
 
+# MCP config (contains API keys)
+.mcp.json
+
 # Build outputs
 dist/
 build/

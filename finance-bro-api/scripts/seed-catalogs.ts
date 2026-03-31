@@ -48,6 +48,8 @@ async function seed() {
       { codigo: 'consumo', nombre: 'Crédito de Consumo', activo: true },
       { codigo: 'vehiculo', nombre: 'Crédito de Vehículo', activo: true },
       { codigo: 'leasing', nombre: 'Leasing Habitacional', activo: true },
+      { codigo: 'educativo', nombre: 'Crédito Educativo', activo: true },
+      { codigo: 'libre_inversion', nombre: 'Crédito de Libre Inversión', activo: true },
     ];
 
     for (const tipo of tiposCredito) {

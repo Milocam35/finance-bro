@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, ChevronDown, Search, CreditCard, Shield, TrendingUp, Building2, LogIn, UserPlus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Menu, X, ChevronDown, Search, CreditCard, Shield, TrendingUp, Building2 } from "lucide-react";
 
 const navItems = [
   {
@@ -11,6 +10,8 @@ const navItems = [
       { label: "Créditos Hipotecarios", href: "/creditos-hipotecarios", active: true },
       { label: "Créditos Personales", href: "#personales", comingSoon: true },
       { label: "Créditos de Vehículo", href: "/creditos-vehiculo", active: true },
+      { label: "Créditos Educativos", href: "/creditos-educativos", active: true },
+      { label: "Libre Inversión", href: "/creditos-libre-inversion", active: true },
       { label: "Créditos Empresariales", href: "#empresariales", comingSoon: true },
     ],
   },
@@ -144,23 +145,11 @@ export function Header() {
             ))}
           </nav>
 
-          {/* CTA Buttons */}
-          <div className="hidden lg:flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="px-2 py-4 font-medium text-gray-300 hover:text-white hover:bg-white/10 transition-all duration-200 rounded-full"
-            >
-              <LogIn className="w-4 h-4 mr-2" />
-              Iniciar Sesión
-            </Button>
-            <Button
-              size="sm"
-              className="px-5 py-2.5 font-semibold bg-[#0466C8] hover:bg-[#0353A4] text-white rounded-full"
-            >
-              <UserPlus className="w-4 h-4 mr-2" />
-              Registrarse
-            </Button>
+          {/* Badge "Beta" */}
+          <div className="hidden lg:flex items-center">
+            <span className="text-xs font-semibold px-3 py-1 rounded-full bg-[#FFC300]/15 text-[#FFC300] border border-[#FFC300]/30 tracking-wide">
+              Beta
+            </span>
           </div>
 
           {/* Mobile Menu Button */}
@@ -224,18 +213,10 @@ export function Header() {
                   )}
                 </div>
               ))}
-              <div className="pt-4 border-t border-border flex gap-3">
-                <Button
-                  variant="outline"
-                  className="flex-1 font-medium"
-                >
-                  <LogIn className="w-4 h-4 mr-2" />
-                  Iniciar Sesión
-                </Button>
-                <Button className="flex-1 font-semibold bg-blue-600 hover:bg-blue-700 text-white">
-                  <UserPlus className="w-4 h-4 mr-2" />
-                  Registrarse
-                </Button>
+              <div className="pt-4 border-t border-white/10 flex justify-center">
+                <span className="text-xs font-semibold px-3 py-1 rounded-full bg-[#FFC300]/15 text-[#FFC300] border border-[#FFC300]/30 tracking-wide">
+                  Beta
+                </span>
               </div>
             </div>
           </motion.div>
