@@ -8,6 +8,7 @@ import { CatalogosModule } from './catalogos/catalogos.module';
 import { ProductosModule } from './productos/productos.module';
 import { ScrapingModule } from './scraping/scraping.module';
 import { HealthModule } from './health/health.module';
+import { SimulacionesModule } from './simulaciones/simulaciones.module';
 
 // Importar entidades de catálogos
 import { EntidadFinanciera } from './catalogos/entities/entidad-financiera.entity';
@@ -74,6 +75,7 @@ import { EjecucionScraping } from './productos/entities/ejecucion-scraping.entit
     ProductosModule,
     ScrapingModule,
     HealthModule,
+    SimulacionesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

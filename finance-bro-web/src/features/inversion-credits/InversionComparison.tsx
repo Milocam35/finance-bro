@@ -1,11 +1,15 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Banknote, ArrowUpDown, AlertCircle, RefreshCw, SearchX, TrendingDown, ShieldCheck, BarChart3, Building2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { InversionCard } from "./InversionCard";
 import { InversionFilters, InversionFilterState } from "./InversionFilters";
 import { useProductosInversion } from "./useProductosInversion";
 import { Button } from "@/components/ui/button";
 import type { ProductoCredito } from "@/features/mortgage-loans/types";
+import { ComparisonFloatingBar } from "@/features/shared/common/ComparisonFloatingBar";
+import { ComparisonDialog } from "@/features/shared/common/ComparisonDialog";
+import { simulacionQueries } from "@/lib/query-keys";
 
 function getSortRate(producto: ProductoCredito): number {
   const tv = producto.tasa_vigente;
@@ -32,6 +36,25 @@ export function InversionComparison() {
     sortBy: "rate",
   });
 
+  const [selectedForComparison, setSelectedForComparison] = useState<ProductoCredito[]>([]);
+  const [isComparisonDialogOpen, setIsComparisonDialogOpen] = useState(false);
+
+  const toggleComparison = (producto: ProductoCredito) => {
+    setSelectedForComparison((prev) => {
+      if (prev.find((p) => p.id === producto.id)) return prev.filter((p) => p.id !== producto.id);
+      if (prev.length >= 4) return prev;
+      return [...prev, producto];
+    });
+  };
+
+  const productoIds = (productos ?? []).map((p) => p.id);
+  const { data: simulaciones } = useQuery(
+    simulacionQueries.lote(filters.amount, filters.term * 12, productoIds)
+  );
+  const simMap = new Map(
+    simulaciones?.resultados.map((r) => [r.producto_id, r]) ?? []
+  );
+
   const filteredProductos = (productos ?? []).filter((producto) => {
     if (filters.term && producto.monto?.plazo_maximo_meses) {
       const plazoMeses = filters.term * 12;
@@ -42,6 +65,7 @@ export function InversionComparison() {
 
   const sortedProductos = [...filteredProductos].sort((a, b) => {
     if (filters.sortBy === "rate") return getSortRate(a) - getSortRate(b);
+    if (filters.sortBy === "payment") return (simMap.get(a.id)?.cuota_mensual ?? Infinity) - (simMap.get(b.id)?.cuota_mensual ?? Infinity);
     return 0;
   });
 
@@ -219,11 +243,40 @@ export function InversionComparison() {
                 </div>
               )}
 
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              <div className={`grid gap-6 md:grid-cols-2 lg:grid-cols-3 ${selectedForComparison.length >= 2 ? "pb-20" : ""}`}>
                 {sortedProductos.map((producto, index) => (
-                  <InversionCard key={producto.id} producto={producto} index={index} loanAmount={filters.amount} />
+                  <InversionCard
+                    key={producto.id}
+                    producto={producto}
+                    index={index}
+                    loanAmount={filters.amount}
+                    termMonths={filters.term * 12}
+                    simulacionResult={simMap.get(producto.id)}
+                    promedioLote={simulaciones?.promedio_cuota_mensual}
+                    allProducts={sortedProductos}
+                    onToggleComparison={() => toggleComparison(producto)}
+                    isInComparison={!!selectedForComparison.find((p) => p.id === producto.id)}
+                  />
                 ))}
               </div>
+
+              <ComparisonFloatingBar
+                selectedProducts={selectedForComparison}
+                onOpenDialog={() => setIsComparisonDialogOpen(true)}
+                onRemove={(id) => setSelectedForComparison((prev) => prev.filter((p) => p.id !== id))}
+                onClearAll={() => setSelectedForComparison([])}
+              />
+
+              <ComparisonDialog
+                productos={selectedForComparison}
+                isOpen={isComparisonDialogOpen}
+                onClose={() => setIsComparisonDialogOpen(false)}
+                loanAmount={filters.amount}
+                termMonths={filters.term * 12}
+                simMap={simMap}
+                promedioLote={simulaciones?.promedio_cuota_mensual}
+                onRemove={(id) => setSelectedForComparison((prev) => prev.filter((p) => p.id !== id))}
+              />
             </>
           )}
         </div>

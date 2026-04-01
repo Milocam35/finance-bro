@@ -3,14 +3,23 @@ import { motion } from "framer-motion";
 import {
   ChevronRight, Check, Info, ExternalLink, FileText,
   RotateCcw, ArrowRight, Clock, Wallet, TrendingDown, CalendarDays,
+  Scale, Calculator,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ProductoCredito } from "@/features/mortgage-loans/types";
+import { SimulationSheet } from "@/features/shared/common/SimulationSheet";
+import type { ResultadoLoteItem } from "@/lib/query-keys";
 
 interface InversionCardProps {
   producto: ProductoCredito;
   index: number;
   loanAmount: number;
+  termMonths: number;
+  simulacionResult?: ResultadoLoteItem;
+  promedioLote?: number;
+  allProducts: ProductoCredito[];
+  onToggleComparison?: () => void;
+  isInComparison?: boolean;
 }
 
 const BANK_LOGOS: Record<string, string> = {
@@ -116,8 +125,19 @@ function formatExtractionDate(fecha?: string): string | null {
   } catch { return null; }
 }
 
-export function InversionCard({ producto, index, loanAmount: _loanAmount }: InversionCardProps) {
+export function InversionCard({
+  producto,
+  index,
+  loanAmount,
+  termMonths,
+  simulacionResult,
+  promedioLote,
+  allProducts: _allProducts,
+  onToggleComparison,
+  isInComparison,
+}: InversionCardProps) {
   const [isFlipped, setIsFlipped] = useState(false);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
   const displayRate = getDisplayRate(producto);
   const rateLevel = getRateLevel(displayRate);
   const logo = getBankLogo(producto.entidad);
@@ -130,7 +150,7 @@ export function InversionCard({ producto, index, loanAmount: _loanAmount }: Inve
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.45, delay: index * 0.07 }}
-      className="h-[460px]"
+      className="h-[540px]"
       style={{ perspective: "1200px" }}
     >
       <div
@@ -197,6 +217,25 @@ export function InversionCard({ producto, index, loanAmount: _loanAmount }: Inve
               </div>
             </div>
 
+            {/* Cuota mensual estimada */}
+            <div className="rounded-xl px-4 py-2.5 mb-4 bg-muted/40 flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Calculator className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
+                <div>
+                  <p className="text-[9px] text-muted-foreground leading-tight">Cuota estimada</p>
+                  <p className="text-[13px] font-bold text-foreground leading-tight">
+                    {simulacionResult
+                      ? `${new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(simulacionResult.cuota_mensual)} /mes`
+                      : <span className="text-muted-foreground/50 font-normal text-xs">Calculando…</span>
+                    }
+                  </p>
+                </div>
+              </div>
+              <p className="text-[9px] text-muted-foreground/60 text-right leading-tight">
+                {termMonths >= 12 ? `${Math.floor(termMonths / 12)} años` : `${termMonths}m`}
+              </p>
+            </div>
+
             {producto.descripcion && <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2 mb-3">{producto.descripcion}</p>}
 
             {/* Stats */}
@@ -242,21 +281,52 @@ export function InversionCard({ producto, index, loanAmount: _loanAmount }: Inve
               </div>
             )}
 
-            <div className="flex gap-2.5 mt-auto">
-              <button onClick={() => setIsFlipped(true)}
-                className="flex-1 h-10 rounded-xl border border-border text-sm font-medium text-foreground bg-card hover:bg-muted transition-colors flex items-center justify-center gap-1.5">
-                Más info <ArrowRight className="w-3.5 h-3.5" />
+            <div className="flex gap-2 mt-auto">
+              {onToggleComparison && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onToggleComparison(); }}
+                  className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 transition-colors ${
+                    isInComparison ? "border-[#FFC300] bg-[#FFC300]/10 text-[#FFC300]" : "border-border bg-card text-muted-foreground hover:border-[#FFC300]/50 hover:text-[#FFC300]"
+                  }`}
+                  title={isInComparison ? "Quitar de comparación" : "Agregar a comparación"}
+                >
+                  <Scale className="w-3.5 h-3.5" />
+                </button>
+              )}
+              <button
+                onClick={(e) => { e.stopPropagation(); setIsSheetOpen(true); }}
+                className="flex-1 h-9 rounded-xl border border-secondary/30 bg-secondary/5 text-secondary text-xs font-semibold hover:bg-secondary/10 transition-colors flex items-center justify-center gap-1"
+              >
+                <Calculator className="w-3 h-3" />
+                Simular
+              </button>
+              <button
+                onClick={() => setIsFlipped(true)}
+                className="flex-1 h-9 rounded-xl border border-border text-xs font-medium text-foreground bg-card hover:bg-muted transition-colors flex items-center justify-center gap-1"
+              >
+                Más info <ArrowRight className="w-3 h-3" />
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); if (productUrl) window.open(productUrl, "_blank", "noopener,noreferrer"); }}
-                className="flex-1 h-10 rounded-xl text-sm font-semibold text-primary-foreground transition-all flex items-center justify-center gap-1.5 shadow-lg"
-                style={{ backgroundColor: bankColor.primary, boxShadow: `0 4px 14px ${bankColor.primary}40` }}
-                onMouseEnter={(e) => { (e.target as HTMLElement).style.filter="brightness(1.1)"; (e.target as HTMLElement).style.transform="translateY(-1px)"; }}
-                onMouseLeave={(e) => { (e.target as HTMLElement).style.filter="brightness(1)"; (e.target as HTMLElement).style.transform="translateY(0)"; }}
+                className="w-9 h-9 rounded-xl text-primary-foreground flex items-center justify-center shadow-sm transition-all hover:brightness-110"
+                style={{ backgroundColor: bankColor.primary }}
+                title="Solicitar"
               >
-                Solicitar <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
+
+            <SimulationSheet
+              producto={producto}
+              isOpen={isSheetOpen}
+              onClose={() => setIsSheetOpen(false)}
+              initialAmount={loanAmount}
+              initialTermMonths={termMonths}
+              promedioLote={promedioLote}
+              bankColor={bankColor}
+              onAddToComparison={onToggleComparison}
+              isInComparison={isInComparison}
+            />
           </div>
         </div>
 

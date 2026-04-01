@@ -9,10 +9,14 @@
       "Bash(fi)",
       "Bash(npm install:*)",
       "Bash(del *.webp)",
-      "mcp__n8n-mcp__*"
+      "mcp__n8n-mcp__*",
+      "Bash(docker exec:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
+  "enabledPlugins": {
+    "n8n-mcp-skills@n8n-skills": true
+  },
   "extraKnownMarketplaces": {
     "n8n-skills": {
       "source": {
@@ -20,8 +24,5 @@
         "repo": "czlonkowski/n8n-skills"
       }
     }
-  },
-  "enabledPlugins": {
-    "n8n-mcp-skills@n8n-skills": true
   }
 }
