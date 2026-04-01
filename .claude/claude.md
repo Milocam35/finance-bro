@@ -14,7 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Objetivo**: Democratizar el acceso a información financiera transparente y actualizada en tiempo real.
 
-**Estado Actual**: Backend API completamente implementado (18+ endpoints), Frontend integrado con API real via TanStack Query, Infraestructura Docker lista, CI/CD con GitHub Actions configurado, n8n con 2 workflows (scraping + PDF URL updater).
+**Estado Actual**: Backend API completamente implementado (20+ endpoints incluyendo módulo de Simulaciones), Frontend integrado con API real via TanStack Query con 4 comparadores de crédito, simulador de cuotas individual (SimulationSheet) y comparación multi-producto (ComparisonFloatingBar + ComparisonDialog), Infraestructura Docker lista con volúmenes de desarrollo, CI/CD con GitHub Actions configurado, n8n con 2 workflows (scraping + PDF URL updater).
 
 ---
 
@@ -206,6 +206,25 @@ docker compose exec backend npm run seed:catalogs
 - `create-entidad-financiera.dto.ts`
 - `update-entidad-financiera.dto.ts`
 - `entidad-financiera-response.dto.ts`
+
+### Módulo Simulaciones
+
+**Endpoints**:
+- `POST /api/simulaciones/calcular` — Calcula cuota mensual dado monto, plazo y tasa EA (PMT Sistema Francés). Cálculo puro, sin acceso a DB.
+- `POST /api/simulaciones/calcular-lote` — Calcula cuotas para múltiples productos en un request. Resuelve la TEA desde la DB según denominación (UVR usa `tasa_final`, rango usa `tasa_minima`, pesos usa `tasa_valor`). Devuelve array de resultados + promedio.
+
+**Fórmula PMT**:
+```
+r = (1 + TEA/100)^(1/12) - 1
+PMT = P × [r(1+r)^n] / [(1+r)^n − 1]
+```
+
+**DTOs** (en `src/simulaciones/dto/`):
+- `calcular-simulacion.dto.ts` — monto, plazo_meses, tasa_anual
+- `calcular-lote.dto.ts` — monto, plazo_meses, producto_ids (array UUID, max 100)
+- `resultado-simulacion.dto.ts` — ResultadoSimulacionDto, ResultadoLoteItemDto, ResultadoLoteDto
+
+**Uso típico en frontend**: El comparador llama `calcular-lote` con todos los producto_ids visibles para mostrar la cuota estimada en cada card. La SimulationSheet llama `calcular` individualmente con los sliders del usuario (monto/plazo editables).
 
 ### Módulo Health
 
@@ -446,6 +465,11 @@ Proyecto-FinanceBro/
 │   │   │   ├── scraping.controller.ts
 │   │   │   ├── scraping.service.ts   # Idempotencia + detección de cambios
 │   │   │   └── dto/
+│   │   ├── simulaciones/             # Módulo de simulación de créditos
+│   │   │   ├── simulaciones.controller.ts  # POST /calcular, POST /calcular-lote
+│   │   │   ├── simulaciones.service.ts     # PMT Sistema Francés + resolución TEA
+│   │   │   ├── simulaciones.module.ts
+│   │   │   └── dto/                  # CalcularSimulacion, CalcularLote, Resultado DTOs
 │   │   ├── health/                   # Health checks (Terminus)
 │   │   ├── database/                 # Migraciones y data source
 │   │   └── app.module.ts
@@ -459,15 +483,25 @@ Proyecto-FinanceBro/
 │   ├── src/
 │   │   ├── components/ui/            # shadcn/ui (40+)
 │   │   ├── features/
-│   │   │   └── mortgage-loans/       # Comparador hipotecario
-│   │   │       ├── BankCard.tsx      # Card 3D flip con datos reales
-│   │   │       ├── BankComparison.tsx # Comparador principal
-│   │   │       ├── CreditFilters.tsx  # Filtros de búsqueda
-│   │   │       ├── useProductosHipotecarios.ts  # Hook TanStack Query
-│   │   │       └── types.ts          # Interfaces TypeScript
+│   │   │   ├── mortgage-loans/       # Comparador hipotecario
+│   │   │   │   ├── BankCard.tsx      # Card 3D flip h-[540px] con cuota estimada
+│   │   │   │   ├── BankComparison.tsx # Comparador con batch query + FloatingBar + Dialog
+│   │   │   │   ├── CreditFilters.tsx  # Filtros de búsqueda
+│   │   │   │   ├── useProductosHipotecarios.ts  # Hook TanStack Query
+│   │   │   │   └── types.ts          # Interfaces TypeScript
+│   │   │   ├── vehicle-credits/      # Comparador vehículo (mismo patrón)
+│   │   │   ├── education-credits/    # Comparador educativo (mismo patrón)
+│   │   │   ├── inversion-credits/    # Comparador libre inversión (mismo patrón)
+│   │   │   └── shared/
+│   │   │       ├── common/
+│   │   │       │   ├── SimulationSheet.tsx       # Panel lateral de simulación individual
+│   │   │       │   ├── ComparisonFloatingBar.tsx  # Barra flotante multi-selección
+│   │   │       │   └── ComparisonDialog.tsx       # Tabla comparativa lado a lado
+│   │   │       └── layout/
+│   │   │           └── Header.tsx    # Sin botones auth, con badge Beta
 │   │   ├── lib/
-│   │   │   ├── api.ts               # HTTP client (fetch wrapper)
-│   │   │   ├── query-keys.ts        # TanStack Query key factory
+│   │   │   ├── api.ts               # HTTP client (fetch wrapper + apiFetch genérico)
+│   │   │   ├── query-keys.ts        # TanStack Query key factory (productos + simulaciones)
 │   │   │   └── utils.ts
 │   │   ├── pages/
 │   │   └── hooks/
@@ -572,13 +606,13 @@ PGADMIN_DEFAULT_PASSWORD=admin123
 
 ## Roadmap 2026
 
-**Q1 2026** (Enero - Marzo)
+**Q1 2026** (Enero - Abril)
 - [x] Comparador de créditos hipotecarios (Frontend)
 - [x] Sistema n8n con scraping automatizado
 - [x] Backend API con NestJS + PostgreSQL + TypeORM
 - [x] Endpoint de ingesta desde n8n (con tests E2E)
 - [x] Swagger UI documentation
-- [x] Docker Compose (desarrollo y producción)
+- [x] Docker Compose (desarrollo con volúmenes + producción multi-stage)
 - [x] Documentación de despliegue (AWS EC2, Docker)
 - [x] Sistema de migraciones y seeds
 - [x] Integración frontend ↔ backend API (TanStack Query + api.ts + query-keys.ts)
@@ -586,8 +620,14 @@ PGADMIN_DEFAULT_PASSWORD=admin123
 - [x] Controllers completos: Productos (8 endpoints), Catálogos (7 endpoints)
 - [x] DTOs con validación (class-validator) para todos los módulos
 - [x] Workflow PDFUrlUpdater con Gemini AI para actualización de URLs
-- [x] BankCard mejorada con descripción, beneficios, stats en cara frontal
+- [x] Cards 3D flip con tasa, cuota estimada, descripción, beneficios y 4 acciones
 - [x] CORS para Cloudflare tunnels (desarrollo remoto)
+- [x] Módulo Simulaciones (POST /calcular + POST /calcular-lote, PMT Sistema Francés)
+- [x] SimulationSheet — panel lateral por producto con sliders reactivos
+- [x] ComparisonFloatingBar — selección multi-producto con Framer Motion
+- [x] ComparisonDialog — tabla comparativa lado a lado (mejor cuota destacada)
+- [x] 4 comparadores completos: hipotecario, vehículo, educativo, libre inversión
+- [x] Header simplificado (badge Beta, sin botones de autenticación)
 - [ ] Despliegue en AWS EC2 (producción)
 
 **Q2 2026** (Abril - Junio)
@@ -903,9 +943,9 @@ npm run migration:run
 
 ---
 
-**Última actualización**: Marzo 2026
-**Versión del proyecto**: v1.1.0
-**Estado**: Backend + Frontend integrados, CI/CD configurado, Docker listo para producción
+**Última actualización**: Abril 2026
+**Versión del proyecto**: v1.2.0
+**Estado**: Backend + Frontend integrados (20+ endpoints, 4 comparadores, simulador + comparación multi-producto), CI/CD configurado, Docker listo para producción
 
 ---
 
@@ -913,10 +953,11 @@ npm run migration:run
 
 ### ✅ Completado
 
-- **Backend API NestJS**: 18+ endpoints REST
+- **Backend API NestJS**: 20+ endpoints REST
   - Productos: 8 endpoints (CRUD, filtros, paginación, mejores tasas)
   - Catálogos: 7 endpoints (CRUD entidades, soft/hard delete, restore)
   - Scraping: Ingesta idempotente desde n8n
+  - Simulaciones: POST /calcular (PMT puro) + POST /calcular-lote (batch con resolución TEA desde DB)
   - Health: Health checks con Terminus
   - DTOs completos con class-validator para todos los módulos
   - Tests E2E (7/7 passing)
@@ -930,15 +971,19 @@ npm run migration:run
   - Sistema de idempotencia
 
 - **Frontend React**: Integrado con API real
-  - TanStack Query para fetching + caching (5min stale time)
+  - TanStack Query (5min stale para lote, Infinity para cálculo individual)
   - HTTP client centralizado (`src/lib/api.ts`)
-  - Query key factory (`src/lib/query-keys.ts`)
-  - Hook `useProductosHipotecarios` para datos reales
-  - BankCard 3D flip con descripción, beneficios, stats
+  - Query key factory (`src/lib/query-keys.ts`) con interfaces de simulación
+  - 4 comparadores: hipotecario, vehículo, educativo, libre inversión
+  - Cards 3D flip `h-[540px]` con cuota estimada por batch query
+  - SimulationSheet con sliders reactivos (re-fetch automático al cambiar monto/plazo)
+  - ComparisonFloatingBar con Framer Motion (aparece ≥2 productos)
+  - ComparisonDialog con tabla comparativa y mejor cuota destacada
+  - Header con badge Beta (sin botones de auth)
   - 40+ componentes shadcn/ui reutilizables
 
 - **Infraestructura Docker**:
-  - `docker-compose.yml` - Desarrollo (PostgreSQL, Redis, Backend, Frontend, PgAdmin)
+  - `docker-compose.yml` - Desarrollo con volúmenes montados (hot-reload automático)
   - `docker-compose.prod.yml` - Producción (multi-stage, non-root, security hardening)
   - Nginx reverse proxy con gzip, caching, security headers
   - Dockerfiles multi-stage para backend y frontend
@@ -980,13 +1025,18 @@ npm run migration:run
 ### Frontend
 
 1. **Integración API**: Conectado via TanStack Query + `src/lib/api.ts`
-2. **Query Keys**: Usar factory en `src/lib/query-keys.ts` para type safety
-3. **Hooks**: Custom hooks por feature (ej: `useProductosHipotecarios`)
+2. **Query Keys**: Usar factory en `src/lib/query-keys.ts` para type safety. Incluye `simulacionQueries.lote()` y `simulacionQueries.single()`
+3. **Hooks**: Custom hooks por feature (ej: `useProductosHipotecarios`, `useProductosEducativos`)
 4. **Componentes**: Usar shadcn/ui existentes antes de crear nuevos
-5. **BankCard**: Card 3D flip con front (tasa, descripción, beneficios, stats) y back (detalle completo)
-6. **Paleta de colores**: Seguir branding definido (blues, grays, yellow accent)
-7. **Responsive**: Mobile-first approach con Tailwind
-8. **Env**: `VITE_API_URL` apunta al backend (default: `http://localhost:3000`)
+5. **Cards (todos los tipos)**: 3D flip `h-[540px]`, frente con tasa, cuota estimada (batch API), descripción, beneficios, stats y 4 botones (comparar/simular/más info/solicitar). Reverso con detalle completo.
+6. **Componentes compartidos** (`src/features/shared/common/`):
+   - `SimulationSheet` — panel lateral con sliders editables, re-fetch automático al cambiar monto/plazo
+   - `ComparisonFloatingBar` — barra flotante con AnimatePresence, aparece con ≥2 productos seleccionados
+   - `ComparisonDialog` — tabla comparativa multi-producto con mejor cuota destacada
+7. **Cálculos financieros**: SIEMPRE en el backend vía `/api/simulaciones`. Nunca calcular PMT en el frontend.
+8. **Paleta de colores**: Seguir branding definido (blues, grays, yellow accent `#FFC300`)
+9. **Responsive**: Mobile-first approach con Tailwind
+10. **Env**: `VITE_API_URL` apunta al backend (default: `http://localhost:3000`)
 
 ### Base de Datos
 
