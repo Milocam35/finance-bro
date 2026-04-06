@@ -3,10 +3,12 @@ import { Search, Mail, MapPin } from "lucide-react";
 const footerLinks = {
   productos: [
     { label: "Créditos Hipotecarios", href: "/creditos-hipotecarios" },
-    { label: "Créditos Personales", href: "#personales" },
-    { label: "Seguros", href: "#seguros" },
-    { label: "Tarjetas de Crédito", href: "#tarjetas" },
+    { label: "Créditos de Vehículo", href: "/creditos-vehiculo" },
+    { label: "Créditos Educativos", href: "/creditos-educativos" },
+    { label: "Libre Inversión", href: "/creditos-libre-inversion" },
     { label: "Inversiones", href: "#inversiones" },
+    { label: "Tarjetas de Crédito", href: "#tarjetas" },
+    { label: "Seguros", href: "#seguros" },
   ],
   empresa: [
     { label: "Sobre Nosotros", href: "#nosotros" },

@@ -39,7 +39,7 @@ const DEFAULT_FILTERS: VehicleFilterState = {
   amount: 50000000,
   term: 5,
   sortBy: "rate",
-  vehicleType: "all",
+  vehicleType: "auto",
 };
 
 export function VehicleFilters({ onFilterChange }: VehicleFiltersProps) {
@@ -117,7 +117,7 @@ export function VehicleFilters({ onFilterChange }: VehicleFiltersProps) {
     filters.amount !== 50000000 ||
     filters.term !== 5 ||
     filters.sortBy !== "rate" ||
-    filters.vehicleType !== "all";
+    filters.vehicleType !== "auto";
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("es-CO", {
@@ -184,6 +184,34 @@ export function VehicleFilters({ onFilterChange }: VehicleFiltersProps) {
 
         {/* Sort & Vehicle Type filters */}
         <div className="grid gap-6 lg:grid-cols-3 mb-8">
+          {/* Tipo de vehículo — izquierda */}
+          <div className="space-y-3 lg:col-span-2">
+            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <Car className="w-4 h-4 text-secondary" />
+              Tipo de vehículo
+            </label>
+            <div className="flex gap-2">
+              {([
+                { value: "auto", label: "Automóvil", icon: Car },
+                { value: "moto", label: "Motocicleta", icon: Bike },
+              ] as const).map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => handleChange("vehicleType", option.value)}
+                  className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border ${
+                    filters.vehicleType === option.value
+                      ? "bg-secondary text-primary-foreground border-secondary shadow-md shadow-secondary/20"
+                      : "bg-muted text-foreground border-border hover:bg-border hover:border-border"
+                  }`}
+                >
+                  <option.icon className="w-4 h-4" />
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Ordenar por — derecha */}
           <div className="space-y-3">
             <label className="flex items-center gap-2 text-sm font-medium text-foreground">
               <ArrowUpDown className="w-4 h-4 text-secondary" />
@@ -199,36 +227,8 @@ export function VehicleFilters({ onFilterChange }: VehicleFiltersProps) {
               <SelectContent>
                 <SelectItem value="rate">Menor tasa</SelectItem>
                 <SelectItem value="payment">Menor mensualidad</SelectItem>
-                <SelectItem value="cat">Menor costo total</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-
-          <div className="space-y-3">
-            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <Car className="w-4 h-4 text-secondary" />
-              Tipo de vehículo
-            </label>
-            <div className="flex gap-2">
-              {([
-                { value: "all", label: "Todos", icon: null },
-                { value: "auto", label: "Automóvil", icon: Car },
-                { value: "moto", label: "Motocicleta", icon: Bike },
-              ] as const).map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => handleChange("vehicleType", option.value)}
-                  className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border ${
-                    filters.vehicleType === option.value
-                      ? "bg-secondary text-primary-foreground border-secondary shadow-md shadow-secondary/20"
-                      : "bg-muted text-foreground border-border hover:bg-border hover:border-border"
-                  }`}
-                >
-                  {option.icon && <option.icon className="w-4 h-4" />}
-                  {option.label}
-                </button>
-              ))}
-            </div>
           </div>
         </div>
 

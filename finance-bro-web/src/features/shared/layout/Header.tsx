@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, ChevronDown, Search, CreditCard, Shield, TrendingUp, Building2 } from "lucide-react";
+import { Menu, X, ChevronDown, Search, CreditCard, Shield, TrendingUp, Building2, LogIn, UserPlus } from "lucide-react";
 
 const navItems = [
   {
@@ -8,17 +8,16 @@ const navItems = [
     icon: Building2,
     submenu: [
       { label: "Créditos Hipotecarios", href: "/creditos-hipotecarios", active: true },
-      { label: "Créditos Personales", href: "#personales", comingSoon: true },
       { label: "Créditos de Vehículo", href: "/creditos-vehiculo", active: true },
       { label: "Créditos Educativos", href: "/creditos-educativos", active: true },
       { label: "Libre Inversión", href: "/creditos-libre-inversion", active: true },
-      { label: "Créditos Empresariales", href: "#empresariales", comingSoon: true },
+      { label: "Crédito Corporativo", href: "#corporativo", comingSoon: true },
     ],
   },
   {
-    label: "Seguros",
-    icon: Shield,
-    href: "#seguros",
+    label: "Inversiones",
+    icon: TrendingUp,
+    href: "#inversiones",
     comingSoon: true,
   },
   {
@@ -28,9 +27,9 @@ const navItems = [
     comingSoon: true,
   },
   {
-    label: "Inversiones",
-    icon: TrendingUp,
-    href: "#inversiones",
+    label: "Seguros",
+    icon: Shield,
+    href: "#seguros",
     comingSoon: true,
   },
 ];
@@ -44,18 +43,13 @@ export function Header() {
   useEffect(() => {
     const controlHeader = () => {
       const currentScrollY = window.scrollY;
-
       if (currentScrollY < 10) {
-        // En el top de la página
         setIsVisible(true);
       } else if (currentScrollY > lastScrollY && currentScrollY > 100) {
-        // Scrolling down y pasó los 100px
         setIsVisible(false);
       } else if (currentScrollY < lastScrollY) {
-        // Scrolling up
         setIsVisible(true);
       }
-
       setLastScrollY(currentScrollY);
     };
 
@@ -66,17 +60,13 @@ export function Header() {
   return (
     <motion.header
       initial={{ y: 0 }}
-      animate={{
-        y: isVisible ? 0 : -100,
-      }}
-      transition={{
-        duration: 0.3,
-        ease: "easeInOut",
-      }}
+      animate={{ y: isVisible ? 0 : -100 }}
+      transition={{ duration: 0.3, ease: "easeInOut" }}
       className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-b from-black/60 via-black/40 to-transparent transition-all duration-300"
     >
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16 lg:h-20">
+
           {/* Logo */}
           <a href="/" className="flex items-center gap-0">
             <span className="text-2xl font-bold tracking-tight leading-none inline-flex items-baseline" style={{ fontFamily: "'Hanken Grotesk', sans-serif", fontWeight: 900 }}>
@@ -97,9 +87,7 @@ export function Header() {
                 onMouseEnter={() => item.submenu && setOpenSubmenu(item.label)}
                 onMouseLeave={() => setOpenSubmenu(null)}
               >
-                <button
-                  className="flex items-center gap-1 px-4 py-2 text-sm font-medium text-gray-300 hover:text-white transition-colors rounded-lg hover:bg-white/10"
-                >
+                <button className="flex items-center gap-1 px-4 py-2 text-sm font-medium text-gray-300 hover:text-white transition-colors rounded-lg hover:bg-white/10">
                   <item.icon className="w-4 h-4" />
                   {item.label}
                   {item.submenu && <ChevronDown className="w-3 h-3" />}
@@ -125,9 +113,7 @@ export function Header() {
                           key={subitem.label}
                           href={subitem.href}
                           className={`flex items-center justify-between px-4 py-3 text-sm hover:bg-muted transition-colors ${
-                            subitem.active
-                              ? "text-primary font-medium"
-                              : "text-muted-foreground"
+                            subitem.active ? "text-primary font-medium" : "text-muted-foreground"
                           }`}
                         >
                           {subitem.label}
@@ -145,11 +131,25 @@ export function Header() {
             ))}
           </nav>
 
-          {/* Badge "Beta" */}
-          <div className="hidden lg:flex items-center">
+          {/* Right: Beta + Auth buttons */}
+          <div className="hidden lg:flex items-center gap-3">
             <span className="text-xs font-semibold px-3 py-1 rounded-full bg-[#FFC300]/15 text-[#FFC300] border border-[#FFC300]/30 tracking-wide">
               Beta
             </span>
+            <a
+              href="#login"
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-200"
+            >
+              <LogIn className="w-4 h-4" />
+              Iniciar sesión
+            </a>
+            <a
+              href="#register"
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-[#001233] bg-[#FFC300] hover:bg-[#FFD60A] rounded-lg transition-all duration-200 shadow-md shadow-[#FFC300]/20"
+            >
+              <UserPlus className="w-4 h-4" />
+              Registrarse
+            </a>
           </div>
 
           {/* Mobile Menu Button */}
@@ -179,11 +179,7 @@ export function Header() {
               {navItems.map((item) => (
                 <div key={item.label}>
                   <button
-                    onClick={() =>
-                      setOpenSubmenu(
-                        openSubmenu === item.label ? null : item.label
-                      )
-                    }
+                    onClick={() => setOpenSubmenu(openSubmenu === item.label ? null : item.label)}
                     className="flex items-center justify-between w-full px-4 py-3 text-sm font-medium text-white rounded-lg hover:bg-white/10"
                   >
                     <span className="flex items-center gap-2">
@@ -191,11 +187,7 @@ export function Header() {
                       {item.label}
                     </span>
                     {item.submenu && (
-                      <ChevronDown
-                        className={`w-4 h-4 transition-transform ${
-                          openSubmenu === item.label ? "rotate-180" : ""
-                        }`}
-                      />
+                      <ChevronDown className={`w-4 h-4 transition-transform ${openSubmenu === item.label ? "rotate-180" : ""}`} />
                     )}
                   </button>
                   {item.submenu && openSubmenu === item.label && (
@@ -213,10 +205,23 @@ export function Header() {
                   )}
                 </div>
               ))}
-              <div className="pt-4 border-t border-white/10 flex justify-center">
-                <span className="text-xs font-semibold px-3 py-1 rounded-full bg-[#FFC300]/15 text-[#FFC300] border border-[#FFC300]/30 tracking-wide">
-                  Beta
-                </span>
+
+              {/* Mobile auth buttons */}
+              <div className="pt-4 border-t border-white/10 flex flex-col gap-2">
+                <a
+                  href="#login"
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white border border-white/20 rounded-lg hover:bg-white/10 transition-colors"
+                >
+                  <LogIn className="w-4 h-4" />
+                  Iniciar sesión
+                </a>
+                <a
+                  href="#register"
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-[#001233] bg-[#FFC300] hover:bg-[#FFD60A] rounded-lg transition-colors"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  Registrarse
+                </a>
               </div>
             </div>
           </motion.div>

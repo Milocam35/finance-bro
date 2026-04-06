@@ -7,16 +7,10 @@ import {
   ExternalLink,
   FileText,
   RotateCcw,
-  ArrowRight,
-  Clock,
-  Wallet,
-  TrendingDown,
   CalendarDays,
   Scale,
   Calculator,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
   TooltipContent,
@@ -110,6 +104,7 @@ function getDisplayRate(producto: ProductoCredito): number {
   if (!tv) return 0;
   if (tv.tasa_valor != null && tv.tasa_valor > 0) return tv.tasa_valor;
   if (tv.tasa_final != null && tv.tasa_final > 0) return tv.tasa_final;
+  if (tv.tasa_maxima != null && tv.tasa_maxima > 0) return tv.tasa_maxima;
   return 0;
 }
 
@@ -121,6 +116,16 @@ function getRateLevel(rate: number): { label: string; color: string; bgClass: st
   if (rate <= 14.5)
     return { label: "Promedio", color: "hsl(var(--rate-average))", bgClass: "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300" };
   return { label: "Alta", color: "hsl(var(--rate-high))", bgClass: "bg-orange-50 text-orange-700 dark:bg-orange-950 dark:text-orange-300" };
+}
+
+/** Returns true if hex color is light (needs dark text) */
+function isLightColor(hex: string): boolean {
+  const h = hex.replace("#", "");
+  if (h.length < 6) return false;
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 > 160;
 }
 
 // ─── Currency formatter ──────────────────────────────────────────────────────
@@ -192,7 +197,7 @@ export function BankCard({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.45, delay: index * 0.07 }}
-      className="h-[540px]"
+      className="h-[300px]"
       style={{ perspective: "1200px" }}
     >
       <div
@@ -206,255 +211,160 @@ export function BankCard({
         {/* FRONT FACE                                     */}
         {/* ═══════════════════════════════════════════════ */}
         <div
-          className="absolute inset-0 rounded-2xl border border-border bg-card overflow-hidden"
+          className="absolute inset-0 rounded-2xl border border-border/60 bg-card overflow-hidden shadow-sm hover:shadow-md transition-shadow"
           style={{ backfaceVisibility: "hidden" }}
         >
-          {/* Top accent bar with bank brand color */}
+          {/* Top accent bar */}
           <div
-            className="h-1 w-full"
-            style={{
-              background: `linear-gradient(90deg, ${bankColor.primary}, ${bankColor.primary}80, transparent)`,
-            }}
+            className="h-[3px] w-full"
+            style={{ background: `linear-gradient(90deg, ${bankColor.primary}, ${bankColor.primary}50, transparent)` }}
           />
 
-          <div className="p-5 h-[calc(100%-4px)] flex flex-col">
-            {/* Header: Logo + Name + Rate badge */}
-            <div className="flex items-start gap-3.5 mb-5">
-              {/* Bank logo */}
+          <div className="p-4 h-[calc(100%-3px)] flex flex-col gap-3">
+
+            {/* ── Header ── */}
+            <div className="flex items-center gap-3">
               <div
-                className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0 border border-border/50 overflow-hidden"
-                style={{ backgroundColor: bankColor.bg }}
+                className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 overflow-hidden"
+                style={{ backgroundColor: "#0466C818", border: "1.5px solid #0466C825" }}
               >
                 {logo ? (
                   <img
                     src={logo}
                     alt={producto.entidad.nombre}
-                    className="w-10 h-10 object-contain"
+                    className="w-8 h-8 object-contain"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
                       target.style.display = "none";
-                      target.parentElement!.innerHTML = `<span style="font-size:1.5rem;font-weight:700;color:${bankColor.primary}">${producto.entidad.nombre.charAt(0)}</span>`;
+                      target.parentElement!.innerHTML = `<span style="font-size:1.25rem;font-weight:700;color:#0466C8">${producto.entidad.nombre.charAt(0)}</span>`;
                     }}
                   />
                 ) : (
-                  <span
-                    className="text-2xl font-bold"
-                    style={{ color: bankColor.primary }}
-                  >
+                  <span className="text-xl font-bold text-[#0466C8]">
                     {producto.entidad.nombre.charAt(0)}
                   </span>
                 )}
               </div>
-
               <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-foreground text-[15px] leading-tight truncate">
+                <h3 className="font-bold text-foreground text-sm leading-tight truncate">
                   {producto.entidad.nombre}
                 </h3>
-                <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                  {producto.tipo_tasa?.nombre ?? "Tasa efectiva anual"}
-                </p>
+                <div className="flex items-center gap-1 mt-1 flex-wrap">
+                  <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-md border ${getViviendaBadge(producto.tipo_vivienda.codigo)}`}>
+                    {producto.tipo_vivienda.nombre}
+                  </span>
+                  {isUVR && (
+                    <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-md border bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800">
+                      UVR
+                    </span>
+                  )}
+                </div>
               </div>
-
-              <span
-                className={`shrink-0 text-[10px] font-semibold px-2.5 py-1 rounded-full uppercase tracking-wide ${rateLevel.bgClass}`}
-              >
+              <span className={`shrink-0 text-[9px] font-bold px-2 py-1 rounded-lg uppercase tracking-wide ${rateLevel.bgClass}`}>
                 {rateLevel.label}
               </span>
             </div>
 
-            {/* Badges row */}
-            <div className="flex gap-1.5 mb-5 flex-wrap">
-              <span
-                className={`text-[10px] font-medium px-2.5 py-1 rounded-full border ${getViviendaBadge(producto.tipo_vivienda.codigo)}`}
-              >
-                {producto.tipo_vivienda.nombre}
-              </span>
-              {isUVR && (
-                <span className="text-[10px] font-medium px-2.5 py-1 rounded-full border bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800">
-                  UVR
-                </span>
-              )}
-              {producto.tipo_pago && (
-                <span className="text-[10px] font-medium px-2.5 py-1 rounded-full border bg-muted text-muted-foreground border-border">
-                  {producto.tipo_pago.nombre}
-                </span>
-              )}
-            </div>
-
-            {/* Rate display — the hero of the card */}
-            <div
-              className="rounded-xl p-4 mb-4"
-              style={{ backgroundColor: bankColor.bg }}
-            >
-              <div className="flex items-end justify-between">
-                <div>
-                  <p className="text-[11px] text-muted-foreground mb-1 flex items-center gap-1">
-                    {producto.tasa_vigente?.es_rango ? "Tasa desde" : isUVR ? "Tasa EA equivalente" : "Tasa anual"}
+            {/* ── Tasa + Cuota ── */}
+            <div className="rounded-xl p-3.5 bg-[#0466C808] border border-[#0466C818]">
+              <div className="flex items-start gap-3">
+                {/* Tasa */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] text-muted-foreground mb-1 flex items-center gap-1">
+                    {producto.tasa_vigente?.es_rango && (producto.tasa_vigente.tasa_minima ?? 0) > 0 ? "Tasa desde" : isUVR ? "Tasa EA equiv." : "Tasa anual"}
                     <Tooltip>
                       <TooltipTrigger>
-                        <Info className="w-3 h-3 text-muted-foreground/60" />
+                        <Info className="w-3 h-3 text-muted-foreground/50" />
                       </TooltipTrigger>
                       <TooltipContent>
                         <p>{producto.tipo_tasa?.nombre ?? "Tasa efectiva anual"}</p>
-                        {producto.tasa_vigente?.es_rango && (
-                          <p className="text-xs mt-1">
-                            Rango: {producto.tasa_vigente.tasa_minima}% -{" "}
-                            {producto.tasa_vigente.tasa_maxima}%
-                          </p>
-                        )}
                       </TooltipContent>
                     </Tooltip>
                   </p>
-                  <p
-                    className="text-3xl font-extrabold tracking-tight leading-none"
-                    style={{ color: rateLevel.color }}
-                  >
-                    {producto.tasa_vigente?.es_rango && producto.tasa_vigente.tasa_minima
-                      ? `${producto.tasa_vigente.tasa_minima.toFixed(2)}%`
+                  <p className="text-3xl font-extrabold tracking-tight leading-none" style={{ color: rateLevel.color }}>
+                    {producto.tasa_vigente?.es_rango && (producto.tasa_vigente.tasa_minima ?? 0) > 0
+                      ? `${producto.tasa_vigente.tasa_minima!.toFixed(2)}%`
                       : `${displayRate.toFixed(2)}%`}
                   </p>
-                  {isUVR && uvrSpread != null && (
-                    <p className="text-[11px] text-muted-foreground mt-1.5 font-medium">
-                      UVR + {uvrSpread.toFixed(2)}%
-                    </p>
-                  )}
-                  {producto.tasa_vigente?.es_rango && producto.tasa_vigente.tasa_maxima && (
-                    <p className="text-[10px] text-muted-foreground mt-1">
-                      hasta {producto.tasa_vigente.tasa_maxima.toFixed(2)}%
-                    </p>
-                  )}
+                  {/* Fixed height spacer so all cards align */}
+                  <p className="text-[10px] text-muted-foreground mt-1 h-3.5 font-medium">
+                    {isUVR && uvrSpread != null ? `UVR + ${uvrSpread.toFixed(2)}%` : ""}
+                  </p>
                 </div>
-                {/* Decorative rate indicator */}
-                <div className="flex items-center gap-1 opacity-40">
-                  <TrendingDown className="w-5 h-5" style={{ color: rateLevel.color }} />
-                </div>
-              </div>
-            </div>
 
-            {/* Cuota mensual estimada */}
-            <div className="rounded-xl px-4 py-2.5 mb-4 bg-muted/40 flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <Calculator className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
-                <div>
-                  <p className="text-[9px] text-muted-foreground leading-tight">Cuota estimada</p>
-                  <p className="text-[13px] font-bold text-foreground leading-tight">
+                {/* Divider */}
+                <div className="w-px self-stretch bg-border/40 shrink-0" />
+
+                {/* Cuota */}
+                <div className="flex-1 min-w-0 text-right">
+                  <p className="text-[10px] text-muted-foreground mb-1 flex items-center justify-end gap-1">
+                    <Calculator className="w-3 h-3" />
+                    Cuota /mes
+                  </p>
+                  <p className="text-3xl font-extrabold leading-none text-[#0466C8]">
                     {simulacionResult
-                      ? `${new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(simulacionResult.cuota_mensual)} /mes`
-                      : <span className="text-muted-foreground/50 font-normal text-xs">Calculando…</span>
+                      ? formatCurrency(simulacionResult.cuota_mensual)
+                      : <span className="text-muted-foreground/35 font-normal text-xs">Calculando…</span>
                     }
                   </p>
-                </div>
-              </div>
-              <p className="text-[9px] text-muted-foreground/60 text-right leading-tight">
-                {termMonths >= 12 ? `${Math.floor(termMonths / 12)} años` : `${termMonths}m`}
-              </p>
-            </div>
-
-            {/* Description snippet */}
-            {producto.descripcion && (
-              <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2 mb-3">
-                {producto.descripcion}
-              </p>
-            )}
-
-            {/* Quick stats */}
-            <div className="grid grid-cols-2 gap-2.5 mb-3">
-              {(producto.monto?.monto_maximo ?? 0) > 0 && (
-                <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/40">
-                  <Wallet className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-[9px] text-muted-foreground leading-tight">Monto máx.</p>
-                    <p className="text-[11px] font-semibold text-foreground truncate">
-                      {formatCurrency(producto.monto!.monto_maximo!)}
-                    </p>
-                  </div>
-                </div>
-              )}
-              {(producto.monto?.plazo_maximo_meses ?? 0) > 0 && (
-                <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/40">
-                  <Clock className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
-                  <div>
-                    <p className="text-[9px] text-muted-foreground leading-tight">Plazo máx.</p>
-                    <p className="text-[11px] font-semibold text-foreground">
-                      {Math.floor(producto.monto!.plazo_maximo_meses! / 12)} años
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Beneficios highlight */}
-            {(producto.beneficios?.length ?? 0) > 0 && (
-              <div className="space-y-1.5 mb-3 flex-1">
-                {producto.beneficios!.slice(0, 2).map((beneficio, i) => (
-                  <div key={i} className="flex items-start gap-1.5">
-                    <Check className="w-3 h-3 shrink-0 mt-0.5" style={{ color: bankColor.primary }} />
-                    <span className="text-[10px] text-muted-foreground leading-tight line-clamp-1">
-                      {beneficio.descripcion}
-                    </span>
-                  </div>
-                ))}
-                {producto.beneficios!.length > 2 && (
-                  <p className="text-[9px] text-muted-foreground/60 pl-[18px]">
-                    +{producto.beneficios!.length - 2} beneficios más
+                  {/* Fixed height spacer to match tasa side */}
+                  <p className="text-[9px] text-muted-foreground/50 mt-1 h-3.5">
+                    {simulacionResult && termMonths >= 12 ? `${Math.floor(termMonths / 12)} años` : ""}
                   </p>
-                )}
+                </div>
               </div>
-            )}
+            </div>
 
-            {/* Extraction date */}
+            {/* ── Fecha ── */}
             {formatExtractionDate(producto.fecha_extraccion) && (
-              <div className="flex items-center gap-1.5 mb-3">
-                <CalendarDays className="w-3 h-3 text-muted-foreground/50 shrink-0" />
-                <span className="text-[10px] text-muted-foreground/60">
-                  Actualizado: {formatExtractionDate(producto.fecha_extraccion)}
+              <div className="flex items-center gap-1">
+                <CalendarDays className="w-3 h-3 text-muted-foreground/40 shrink-0" />
+                <span className="text-[9px] text-muted-foreground/50">
+                  Actualizado {formatExtractionDate(producto.fecha_extraccion)}
                 </span>
               </div>
             )}
 
-            {/* Actions */}
-            <div className="flex gap-2 mt-auto">
-              {/* Comparar */}
+            {/* ── Acciones ── */}
+            <div className="flex gap-1.5 mt-auto">
+              {/* Comparar — pequeño */}
               {onToggleComparison && (
                 <button
                   onClick={(e) => { e.stopPropagation(); onToggleComparison(); }}
-                  className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 transition-colors ${
+                  className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 transition-all ${
                     isInComparison
-                      ? "border-[#FFC300] bg-[#FFC300]/10 text-[#FFC300]"
-                      : "border-border bg-card text-muted-foreground hover:border-[#FFC300]/50 hover:text-[#FFC300]"
+                      ? "border-[#0466C8] bg-[#0466C8]/15 text-[#0466C8]"
+                      : "border-[#0466C8]/30 bg-[#0466C8]/5 text-[#0466C8]/60 hover:border-[#0466C8] hover:text-[#0466C8]"
                   }`}
                   title={isInComparison ? "Quitar de comparación" : "Agregar a comparación"}
                 >
                   <Scale className="w-3.5 h-3.5" />
                 </button>
               )}
-              {/* Simular */}
-              <button
-                onClick={(e) => { e.stopPropagation(); setIsSheetOpen(true); }}
-                className="flex-1 h-9 rounded-xl border border-secondary/30 bg-secondary/5 text-secondary text-xs font-semibold hover:bg-secondary/10 transition-colors flex items-center justify-center gap-1"
-              >
-                <Calculator className="w-3 h-3" />
-                Simular
-              </button>
-              {/* Más info */}
+              {/* Más info — pequeño */}
               <button
                 onClick={() => setIsFlipped(true)}
-                className="flex-1 h-9 rounded-xl border border-border text-xs font-medium text-foreground bg-card hover:bg-muted transition-colors flex items-center justify-center gap-1"
+                className="w-9 h-9 rounded-xl border border-[#0466C8]/30 bg-[#0466C8]/5 text-[#0466C8]/60 hover:border-[#0466C8] hover:text-[#0466C8] flex items-center justify-center transition-all"
+                title="Más información"
               >
-                Más info
-                <ArrowRight className="w-3 h-3" />
+                <Info className="w-3.5 h-3.5" />
               </button>
-              {/* Solicitar */}
+              {/* Plan de pagos — grande */}
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (productUrl) window.open(productUrl, "_blank", "noopener,noreferrer");
-                }}
-                className="w-9 h-9 rounded-xl text-primary-foreground flex items-center justify-center shadow-sm transition-all hover:brightness-110"
-                style={{ backgroundColor: bankColor.primary }}
-                title="Solicitar"
+                onClick={(e) => { e.stopPropagation(); setIsSheetOpen(true); }}
+                className="flex-1 h-9 rounded-xl bg-[#0466C8] hover:bg-[#0353A4] text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-[#0466C8]/25 active:scale-95"
               >
-                <ChevronRight className="w-4 h-4" />
+                <Calculator className="w-3.5 h-3.5" />
+                Plan de pagos
+              </button>
+              {/* Solicitar — grande */}
+              <button
+                onClick={(e) => { e.stopPropagation(); if (productUrl) window.open(productUrl, "_blank", "noopener,noreferrer"); }}
+                className="flex-1 h-9 rounded-xl bg-[#0466C8] hover:bg-[#0353A4] text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-[#0466C8]/25 active:scale-95"
+                title="Ir a página oficial"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Solicitar
               </button>
             </div>
 

@@ -1,4 +1,8 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// En desarrollo sin VITE_API_URL explícito, usa el mismo hostname del frontend
+// para que funcione tanto desde localhost como desde otros dispositivos en la red local.
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL ||
+  `http://${window.location.hostname}:3000`;
 
 export async function apiFetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const headers: HeadersInit = {

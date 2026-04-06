@@ -10,7 +10,14 @@ async function bootstrap() {
   app.enableCors({
     origin: process.env.CORS_ORIGIN
       ? process.env.CORS_ORIGIN.split(',')
-      : ['http://localhost:5173', /\.trycloudflare\.com$/],
+      : [
+          'http://localhost:5173',
+          'http://127.0.0.1:5173',
+          /^http:\/\/192\.168\.\d+\.\d+:5173$/,
+          /^http:\/\/10\.\d+\.\d+\.\d+:5173$/,
+          /^http:\/\/172\.(1[6-9]|2\d|3[01])\.\d+\.\d+:5173$/,
+          /\.trycloudflare\.com$/,
+        ],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     credentials: true,
   });

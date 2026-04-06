@@ -105,6 +105,7 @@ function getDisplayRate(producto: ProductoCredito): number {
   if (!tv) return 0;
   if (tv.tasa_valor != null && tv.tasa_valor > 0) return tv.tasa_valor;
   if (tv.tasa_final != null && tv.tasa_final > 0) return tv.tasa_final;
+  if (tv.tasa_maxima != null && tv.tasa_maxima > 0) return tv.tasa_maxima;
   return 0;
 }
 
@@ -195,45 +196,43 @@ export function InversionCard({
               <div className="flex items-end justify-between">
                 <div>
                   <p className="text-[11px] text-muted-foreground mb-1 flex items-center gap-1">
-                    {producto.tasa_vigente?.es_rango ? "Tasa desde" : "Tasa anual"}
+                    {producto.tasa_vigente?.es_rango && (producto.tasa_vigente.tasa_minima ?? 0) > 0 ? "Tasa desde" : "Tasa anual"}
                     <Tooltip>
                       <TooltipTrigger><Info className="w-3 h-3 text-muted-foreground/60" /></TooltipTrigger>
                       <TooltipContent>
                         <p>{producto.tipo_tasa?.nombre ?? "Tasa efectiva anual"}</p>
-                        {producto.tasa_vigente?.es_rango && <p className="text-xs mt-1">Rango: {producto.tasa_vigente.tasa_minima}% - {producto.tasa_vigente.tasa_maxima}%</p>}
+                        {producto.tasa_vigente?.es_rango && (producto.tasa_vigente.tasa_minima ?? 0) > 0 && <p className="text-xs mt-1">Rango: {producto.tasa_vigente.tasa_minima}% - {producto.tasa_vigente.tasa_maxima}%</p>}
                       </TooltipContent>
                     </Tooltip>
                   </p>
                   <p className="text-3xl font-extrabold tracking-tight leading-none" style={{ color: rateLevel.color }}>
-                    {producto.tasa_vigente?.es_rango && producto.tasa_vigente.tasa_minima
-                      ? `${producto.tasa_vigente.tasa_minima.toFixed(2)}%`
+                    {producto.tasa_vigente?.es_rango && (producto.tasa_vigente.tasa_minima ?? 0) > 0
+                      ? `${producto.tasa_vigente.tasa_minima!.toFixed(2)}%`
                       : `${displayRate.toFixed(2)}%`}
                   </p>
-                  {producto.tasa_vigente?.es_rango && producto.tasa_vigente.tasa_maxima && (
+                  {producto.tasa_vigente?.es_rango && (producto.tasa_vigente.tasa_minima ?? 0) > 0 && producto.tasa_vigente.tasa_maxima && (
                     <p className="text-[10px] text-muted-foreground mt-1">hasta {producto.tasa_vigente.tasa_maxima.toFixed(2)}%</p>
                   )}
                 </div>
-                <TrendingDown className="w-5 h-5 opacity-40" style={{ color: rateLevel.color }} />
-              </div>
-            </div>
-
-            {/* Cuota mensual estimada */}
-            <div className="rounded-xl px-4 py-2.5 mb-4 bg-muted/40 flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <Calculator className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
-                <div>
-                  <p className="text-[9px] text-muted-foreground leading-tight">Cuota estimada</p>
-                  <p className="text-[13px] font-bold text-foreground leading-tight">
+                {/* Cuota estimada — lado derecho del recuadro de tasa */}
+                <div className="text-right">
+                  <p className="text-[9px] text-muted-foreground/70 mb-0.5 flex items-center justify-end gap-1">
+                    <Calculator className="w-3 h-3" />
+                    Cuota estimada
+                  </p>
+                  <p className="text-3xl font-extrabold text-foreground leading-none">
                     {simulacionResult
-                      ? `${new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(simulacionResult.cuota_mensual)} /mes`
-                      : <span className="text-muted-foreground/50 font-normal text-xs">Calculando…</span>
+                      ? new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(simulacionResult.cuota_mensual)
+                      : <span className="text-muted-foreground/40 font-normal text-[11px]">Calculando…</span>
                     }
                   </p>
+                  {simulacionResult && (
+                    <p className="text-[9px] text-muted-foreground/50 mt-0.5">
+                      {termMonths >= 12 ? `${Math.floor(termMonths / 12)} años` : `${termMonths}m`} · /mes
+                    </p>
+                  )}
                 </div>
               </div>
-              <p className="text-[9px] text-muted-foreground/60 text-right leading-tight">
-                {termMonths >= 12 ? `${Math.floor(termMonths / 12)} años` : `${termMonths}m`}
-              </p>
             </div>
 
             {producto.descripcion && <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2 mb-3">{producto.descripcion}</p>}

@@ -293,7 +293,6 @@ export function CreditFilters({ onFilterChange }: CreditFiltersProps) {
               <SelectContent>
                 <SelectItem value="rate">Menor tasa</SelectItem>
                 <SelectItem value="payment">Menor mensualidad</SelectItem>
-                <SelectItem value="cat">Menor costo total</SelectItem>
                 <SelectItem value="rating">Mejor calificación</SelectItem>
               </SelectContent>
             </Select>

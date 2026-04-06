@@ -335,7 +335,6 @@ export function VehicleComparison() {
                   Ordenado por: <span className="font-medium text-foreground">
                     {filters.sortBy === "rate" && "Menor tasa"}
                     {filters.sortBy === "payment" && "Menor mensualidad"}
-                    {filters.sortBy === "cat" && "Menor costo total"}
                   </span>
                 </div>
               </div>
