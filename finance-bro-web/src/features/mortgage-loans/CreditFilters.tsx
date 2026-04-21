@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
-import { DollarSign, Calendar, Home, Banknote, ArrowUpDown, Info, RotateCcw } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { DollarSign, Calendar, Home, Banknote, ArrowUpDown, Info, RotateCcw, ChevronDown } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
 import {
@@ -49,6 +49,7 @@ export function CreditFilters({ onFilterChange }: CreditFiltersProps) {
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [amountInput, setAmountInput] = useState<string>("200000000");
   const [termInput, setTermInput] = useState<string>("20");
+  const [mobileExpanded, setMobileExpanded] = useState(false);
 
   const handleChange = (key: keyof FilterState, value: number | string) => {
     const newFilters = { ...filters, [key]: value };
@@ -138,6 +139,251 @@ export function CreditFilters({ onFilterChange }: CreditFiltersProps) {
     }).format(num);
   };
 
+  const formatAmountShort = (value: number) => {
+    if (value >= 1_000_000_000) return `$${(value / 1_000_000_000).toFixed(1)}B`;
+    if (value >= 1_000_000) return `$${Math.round(value / 1_000_000)}M`;
+    return formatCurrency(value);
+  };
+
+  const filterBody = (
+    <div className="px-5 pt-4 pb-5 lg:px-8 lg:pt-0 lg:pb-8">
+      {/* === ROW 1: Quick toggle filters === */}
+      <div className="grid gap-5 lg:grid-cols-3 mb-6 lg:mb-8">
+        {/* Housing Type - Toggle Pills */}
+        <div className="space-y-3">
+          <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <Home className="w-4 h-4 text-secondary" />
+            Tipo de vivienda
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="cursor-help">
+                  <Info className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-secondary transition-colors" />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <p className="text-sm">
+                  <strong>VIS:</strong> Vivienda de Interés Social (hasta 135 SMMLV).<br/>
+                  <strong>No VIS:</strong> Vivienda que supera el valor VIS.
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </label>
+          <div className="flex gap-2">
+            {[
+              { value: "vis", label: "VIS" },
+              { value: "no_vis", label: "No VIS" },
+            ].map((option) => (
+              <button
+                key={option.value}
+                onClick={() => handleChange("housingType", option.value)}
+                className={`
+                  flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
+                  ${filters.housingType === option.value
+                    ? "bg-primary text-white shadow-sm scale-[1.02]"
+                    : "bg-muted text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                  }
+                `}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Denomination - Toggle Pills */}
+        <div className="space-y-3">
+          <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <Banknote className="w-4 h-4 text-secondary" />
+            Denominación
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="cursor-help">
+                  <Info className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-secondary transition-colors" />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <p className="text-sm">
+                  <strong>Pesos:</strong> Cuota fija o variable en COP.<br/>
+                  <strong>UVR:</strong> Indexado a inflación, tasa más baja pero cuota variable.
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </label>
+          <div className="flex gap-2">
+            {[
+              { value: "all", label: "Todos" },
+              { value: "pesos", label: "Pesos" },
+              { value: "uvr", label: "UVR" },
+            ].map((option) => (
+              <button
+                key={option.value}
+                onClick={() => handleChange("denomination", option.value)}
+                className={`
+                  flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
+                  ${filters.denomination === option.value
+                    ? "bg-primary text-white shadow-sm scale-[1.02]"
+                    : "bg-muted text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+                  }
+                `}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Sort By */}
+        <div className="space-y-3">
+          <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <ArrowUpDown className="w-4 h-4 text-secondary" />
+            Ordenar por
+          </label>
+          <Select
+            value={filters.sortBy}
+            onValueChange={(value) => handleChange("sortBy", value)}
+          >
+            <SelectTrigger className="h-[42px] rounded-xl border-border bg-muted hover:bg-border transition-colors text-sm font-medium text-foreground focus:ring-ring/20 focus:border-ring/40">
+              <SelectValue placeholder="Ordenar por" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="rate">Menor tasa</SelectItem>
+              <SelectItem value="payment">Menor mensualidad</SelectItem>
+              <SelectItem value="rating">Mejor calificación</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div className="relative mb-6 lg:mb-8">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-border" />
+        </div>
+        <div className="relative flex justify-center">
+          <span className="bg-card px-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground/60">
+            Simulación
+          </span>
+        </div>
+      </div>
+
+      {/* === ROW 2: Sliders === */}
+      <div className="grid gap-6 lg:grid-cols-2 lg:gap-8">
+        {/* Amount Slider */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <div className="w-7 h-7 rounded-lg bg-secondary/10 flex items-center justify-center">
+                <DollarSign className="w-4 h-4 text-secondary" />
+              </div>
+              Monto del crédito
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="cursor-help">
+                    <Info className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-secondary transition-colors" />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p className="text-sm">
+                    <strong>VIS:</strong> Típicamente entre $50M - $180M.<br/>
+                    <strong>No VIS:</strong> Desde $180M en adelante.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </label>
+          </div>
+
+          <div className="relative">
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-foreground/[0.02] to-secondary/[0.03] border border-secondary/10">
+              <span className="text-secondary/60 text-sm font-medium">$</span>
+              <Input
+                type="text"
+                value={formatInputCurrency(amountInput)}
+                onChange={handleAmountInputChange}
+                onBlur={handleAmountInputBlur}
+                className="border-0 bg-transparent p-0 h-auto text-lg font-bold text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/50"
+                placeholder="Ingrese el monto"
+              />
+              <span className="text-xs font-medium text-secondary bg-secondary/10 px-2 py-1 rounded-md whitespace-nowrap">
+                COP
+              </span>
+            </div>
+          </div>
+
+          <div className="px-1">
+            <Slider
+              value={[filters.amount]}
+              onValueChange={([value]) => handleSliderChange(value)}
+              min={MIN_AMOUNT}
+              max={MAX_AMOUNT}
+              step={10000000}
+              className="py-2"
+            />
+            <div className="flex justify-between mt-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">$20M</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">$10.000M</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Term Slider */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <div className="w-7 h-7 rounded-lg bg-secondary/10 flex items-center justify-center">
+                <Calendar className="w-4 h-4 text-secondary" />
+              </div>
+              Plazo del crédito
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="cursor-help">
+                    <Info className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-secondary transition-colors" />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p className="text-sm">
+                    Plazos cortos (5-10 años): cuotas altas, menos intereses.<br/>
+                    Plazos largos (20-30 años): cuotas bajas, más costo total.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </label>
+          </div>
+
+          <div className="relative">
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-foreground/[0.02] to-secondary/[0.03] border border-secondary/10">
+              <Input
+                type="text"
+                value={termInput}
+                onChange={handleTermInputChange}
+                onBlur={handleTermInputBlur}
+                className="border-0 bg-transparent p-0 h-auto text-lg font-bold text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/50"
+                placeholder="Plazo en años"
+              />
+              <span className="text-xs font-medium text-secondary bg-secondary/10 px-2 py-1 rounded-md whitespace-nowrap">
+                años
+              </span>
+            </div>
+          </div>
+
+          <div className="px-1">
+            <Slider
+              value={[filters.term]}
+              onValueChange={([value]) => handleTermSliderChange(value)}
+              min={MIN_TERM}
+              max={MAX_TERM}
+              step={1}
+              className="py-2"
+            />
+            <div className="flex justify-between mt-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">5 años</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">30 años</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -155,9 +401,9 @@ export function CreditFilters({ onFilterChange }: CreditFiltersProps) {
         backgroundSize: '24px 24px',
       }} />
 
-      <div className="relative p-6 lg:p-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+      {/* Always-visible header */}
+      <div className="relative px-5 pt-5 lg:px-8 lg:pt-8 pb-4 lg:pb-0">
+        <div className="flex items-center justify-between lg:mb-8">
           <div className="flex items-center gap-3">
             <div className="relative">
               <div className="w-10 h-10 rounded-xl bg-foreground flex items-center justify-center shadow-lg shadow-foreground/20">
@@ -192,242 +438,42 @@ export function CreditFilters({ onFilterChange }: CreditFiltersProps) {
           )}
         </div>
 
-        {/* === ROW 1: Quick toggle filters === */}
-        <div className="grid gap-6 lg:grid-cols-3 mb-8">
-          {/* Housing Type - Toggle Pills */}
-          <div className="space-y-3">
-            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <Home className="w-4 h-4 text-secondary" />
-              Tipo de vivienda
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="cursor-help">
-                    <Info className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-secondary transition-colors" />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-xs">
-                  <p className="text-sm">
-                    <strong>VIS:</strong> Vivienda de Interés Social (hasta 135 SMMLV).<br/>
-                    <strong>No VIS:</strong> Vivienda que supera el valor VIS.
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </label>
-            <div className="flex gap-2">
-              {[
-                { value: "vis", label: "VIS" },
-                { value: "no_vis", label: "No VIS" },
-              ].map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => handleChange("housingType", option.value)}
-                  className={`
-                    flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
-                    ${filters.housingType === option.value
-                      ? "bg-foreground text-primary-foreground shadow-lg shadow-foreground/20 scale-[1.02]"
-                      : "bg-muted text-muted-foreground hover:bg-border hover:text-foreground"
-                    }
-                  `}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
+        {/* Mobile toggle row */}
+        <button
+          className="lg:hidden w-full flex items-center justify-between mt-3 pt-3 border-t border-border/50"
+          onClick={() => setMobileExpanded(v => !v)}
+        >
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span className="font-semibold text-foreground">{formatAmountShort(filters.amount)}</span>
+            <span>·</span>
+            <span>{filters.term} años</span>
+            <span>·</span>
+            <span>{filters.housingType === "vis" ? "VIS" : "No VIS"}</span>
           </div>
+          <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-300 ${mobileExpanded ? "rotate-180" : ""}`} />
+        </button>
+      </div>
 
-          {/* Denomination - Toggle Pills */}
-          <div className="space-y-3">
-            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <Banknote className="w-4 h-4 text-secondary" />
-              Denominación
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="cursor-help">
-                    <Info className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-secondary transition-colors" />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-xs">
-                  <p className="text-sm">
-                    <strong>Pesos:</strong> Cuota fija o variable en COP.<br/>
-                    <strong>UVR:</strong> Indexado a inflación, tasa más baja pero cuota variable.
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </label>
-            <div className="flex gap-2">
-              {[
-                { value: "all", label: "Todos" },
-                { value: "pesos", label: "Pesos" },
-                { value: "uvr", label: "UVR" },
-              ].map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => handleChange("denomination", option.value)}
-                  className={`
-                    flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
-                    ${filters.denomination === option.value
-                      ? "bg-foreground text-primary-foreground shadow-lg shadow-foreground/20 scale-[1.02]"
-                      : "bg-muted text-muted-foreground hover:bg-border hover:text-foreground"
-                    }
-                  `}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Sort By */}
-          <div className="space-y-3">
-            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <ArrowUpDown className="w-4 h-4 text-secondary" />
-              Ordenar por
-            </label>
-            <Select
-              value={filters.sortBy}
-              onValueChange={(value) => handleChange("sortBy", value)}
+      {/* Mobile: animated collapse */}
+      <div className="lg:hidden">
+        <AnimatePresence initial={false}>
+          {mobileExpanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              style={{ overflow: "hidden" }}
+              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
             >
-              <SelectTrigger className="h-[42px] rounded-xl border-border bg-muted hover:bg-border transition-colors text-sm font-medium text-foreground focus:ring-ring/20 focus:border-ring/40">
-                <SelectValue placeholder="Ordenar por" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="rate">Menor tasa</SelectItem>
-                <SelectItem value="payment">Menor mensualidad</SelectItem>
-                <SelectItem value="rating">Mejor calificación</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+              {filterBody}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
-        {/* Divider */}
-        <div className="relative mb-8">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-border" />
-          </div>
-          <div className="relative flex justify-center">
-            <span className="bg-card px-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground/60">
-              Simulación
-            </span>
-          </div>
-        </div>
-
-        {/* === ROW 2: Sliders === */}
-        <div className="grid gap-8 lg:grid-cols-2">
-          {/* Amount Slider */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-                <div className="w-7 h-7 rounded-lg bg-secondary/10 flex items-center justify-center">
-                  <DollarSign className="w-4 h-4 text-secondary" />
-                </div>
-                Monto del crédito
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="cursor-help">
-                      <Info className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-secondary transition-colors" />
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p className="text-sm">
-                      <strong>VIS:</strong> Típicamente entre $50M - $180M.<br/>
-                      <strong>No VIS:</strong> Desde $180M en adelante.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </label>
-            </div>
-
-            {/* Amount display + input */}
-            <div className="relative">
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-foreground/[0.02] to-secondary/[0.03] border border-secondary/10">
-                <span className="text-secondary/60 text-sm font-medium">$</span>
-                <Input
-                  type="text"
-                  value={formatInputCurrency(amountInput)}
-                  onChange={handleAmountInputChange}
-                  onBlur={handleAmountInputBlur}
-                  className="border-0 bg-transparent p-0 h-auto text-lg font-bold text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/50"
-                  placeholder="Ingrese el monto"
-                />
-                <span className="text-xs font-medium text-secondary bg-secondary/10 px-2 py-1 rounded-md whitespace-nowrap">
-                  COP
-                </span>
-              </div>
-            </div>
-
-            <div className="px-1">
-              <Slider
-                value={[filters.amount]}
-                onValueChange={([value]) => handleSliderChange(value)}
-                min={MIN_AMOUNT}
-                max={MAX_AMOUNT}
-                step={10000000}
-                className="py-2"
-              />
-              <div className="flex justify-between mt-2">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">$20M</span>
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">$10.000M</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Term Slider */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-                <div className="w-7 h-7 rounded-lg bg-secondary/10 flex items-center justify-center">
-                  <Calendar className="w-4 h-4 text-secondary" />
-                </div>
-                Plazo del crédito
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="cursor-help">
-                      <Info className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-secondary transition-colors" />
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p className="text-sm">
-                      Plazos cortos (5-10 años): cuotas altas, menos intereses.<br/>
-                      Plazos largos (20-30 años): cuotas bajas, más costo total.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </label>
-            </div>
-
-            {/* Term display + input */}
-            <div className="relative">
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-foreground/[0.02] to-secondary/[0.03] border border-secondary/10">
-                <Input
-                  type="text"
-                  value={termInput}
-                  onChange={handleTermInputChange}
-                  onBlur={handleTermInputBlur}
-                  className="border-0 bg-transparent p-0 h-auto text-lg font-bold text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/50"
-                  placeholder="Plazo en años"
-                />
-                <span className="text-xs font-medium text-secondary bg-secondary/10 px-2 py-1 rounded-md whitespace-nowrap">
-                  años
-                </span>
-              </div>
-            </div>
-
-            <div className="px-1">
-              <Slider
-                value={[filters.term]}
-                onValueChange={([value]) => handleTermSliderChange(value)}
-                min={MIN_TERM}
-                max={MAX_TERM}
-                step={1}
-                className="py-2"
-              />
-              <div className="flex justify-between mt-2">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">5 años</span>
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">30 años</span>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* Desktop: always visible */}
+      <div className="hidden lg:block">
+        {filterBody}
       </div>
     </motion.div>
   );

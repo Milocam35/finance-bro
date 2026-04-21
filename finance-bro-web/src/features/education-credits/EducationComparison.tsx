@@ -99,14 +99,14 @@ export function EducationComparison() {
           className="absolute inset-0"
           style={{
             background: `linear-gradient(145deg,
-              hsl(var(--foreground)) 0%,
-              hsl(260 60% 15%) 35%,
-              hsl(258 55% 22%) 65%,
-              hsl(260 60% 17%) 100%)`,
+              hsl(211 53% 6%) 0%,
+              hsl(216 89% 11%) 38%,
+              hsl(237 70% 18%) 68%,
+              hsl(211 53% 8%) 100%)`,
           }}
         />
 
-        <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute inset-0 overflow-hidden dark:hidden">
           <div
             className="absolute -top-32 -right-32 w-[500px] h-[500px] rounded-full opacity-[0.07]"
             style={{ background: `radial-gradient(circle, hsl(var(--secondary)) 0%, transparent 70%)` }}
@@ -250,10 +250,18 @@ export function EducationComparison() {
           </div>
         </div>
 
-        <div className="absolute bottom-0 left-0 right-0 z-20">
-          <svg viewBox="0 0 1440 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full block" preserveAspectRatio="none" style={{ height: '60px' }}>
-            <path d="M0 100L48 93.3C96 86.7 192 73.3 288 66.7C384 60 480 60 576 63.3C672 66.7 768 73.3 864 76.7C960 80 1056 80 1152 76.7C1248 73.3 1344 66.7 1392 63.3L1440 60V100H1392C1344 100 1248 100 1152 100C1056 100 960 100 864 100C768 100 672 100 576 100C480 100 384 100 288 100C192 100 96 100 48 100H0Z" className="fill-background" />
-          </svg>
+        {/* Wave transition */}
+        <div className="absolute bottom-0 left-0 right-0 overflow-hidden z-20" style={{ height: 72 }}>
+          <div className="absolute bottom-0 left-0 animate-wave-fast opacity-40" style={{ width: "200%", height: "100%" }}>
+            <svg viewBox="0 0 2880 72" preserveAspectRatio="none" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+              <path d="M0,36 C480,8 960,64 1440,36 C1920,8 2400,64 2880,36 L2880,72 L0,72 Z" style={{ fill: "hsl(var(--background))" }} />
+            </svg>
+          </div>
+          <div className="absolute bottom-0 left-0 animate-wave-slow" style={{ width: "200%", height: "100%" }}>
+            <svg viewBox="0 0 2880 72" preserveAspectRatio="none" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
+              <path d="M0,48 C360,18 720,68 1080,48 C1440,28 1800,68 2160,48 C2520,28 2700,58 2880,48 L2880,72 L0,72 Z" style={{ fill: "hsl(var(--background))" }} />
+            </svg>
+          </div>
         </div>
       </section>
 
@@ -335,7 +343,6 @@ export function EducationComparison() {
                   Ordenado por: <span className="font-medium text-foreground">
                     {filters.sortBy === "rate" && "Menor tasa"}
                     {filters.sortBy === "payment" && "Menor mensualidad"}
-                    {filters.sortBy === "cat" && "Menor costo total"}
                   </span>
                 </div>
               </div>

@@ -342,35 +342,138 @@ Acceder a [http://localhost:3000/api/docs](http://localhost:3000/api/docs) para:
 
 ## Diseño y Branding
 
-### Paleta de Colores
+> **REGLAS DE APLICACIÓN OBLIGATORIA**: Todas las reglas de esta sección deben seguirse en CADA cambio de frontend. No introducir colores, fuentes ni estilos que no estén definidos aquí. El branding está definido en el Manual de Marca oficial (assets en `public/brand/`).
 
-**Blues (Primary)**
-- `#0466C8` - Primary blue
-- `#0353A4` - Primary hover
-- `#023E7D` - Dark blue
-- `#002855` - Darker blue (headers)
-- `#001845` - Navy (navegación)
-- `#001233` - Darkest (backgrounds)
+---
 
-**Grays (Neutral)**
-- `#33415C` - Dark gray (texto principal)
-- `#5C677D` - Medium gray (texto secundario)
-- `#7D8597` - Gray (subtítulos)
-- `#979DAC` - Light gray (bordes)
+### Paleta de Colores — OBLIGATORIA
 
-**Dark Accents**
-- `#000814` - Near black
-- `#001D3D` - Dark navy
-- `#003566` - Deep blue (CTAs secundarios)
+| Token | Hex | HSL | Uso | Proporción |
+|-------|-----|-----|-----|-----------|
+| **Blue Electric** | `#303AE4` | `hsl(237 70% 54%)` | Primario — botones CTA, logo, acentos, links activos | 35% |
+| **Deep Ocean** | `#052659` | `hsl(216 89% 19%)` | Secundario — fondos oscuros, hero sections, navbar | 25% |
+| **Sky Mist** | `#C2E8FF` | `hsl(205 100% 88%)` | Fondos suaves, cards claras, backgrounds neutros | 20% |
+| **Sunset Orange** | `#FBB347` | `hsl(36 96% 64%)` | Acento — badges, highlights, detalles de énfasis | 10% |
+| **Dark Blue** | `#0D1B2A` | `hsl(211 53% 11%)` | Texto principal sobre fondo claro | 10% |
 
-**Yellow (Accent)**
-- `#FFC300` - Gold (CTAs, highlights)
-- `#FFD60A` - Primary accent yellow (badges)
+**Reglas de uso de color — NO ignorar:**
+- Botones primarios: `#303AE4` (Blue Electric). NUNCA gris, negro ni otro color para CTAs principales.
+- Hero sections y fondos oscuros: gradiente entre `#052659` y `#0D1B2A` con toque de `#303AE4`.
+- Fondos neutros / cards en modo claro: blanco puro o tints de `#C2E8FF` (máx 10% saturación).
+- Badges de estado, highlights, precios destacados: `#FBB347` (Sunset Orange).
+- Texto sobre fondo claro: `#0D1B2A`. NUNCA `#000000` puro.
+- Gradientes permitidos: combinaciones suaves de los 5 colores. PROHIBIDOS gradientes púrpura/cyan/neón.
+- NUNCA introducir colores fuera de esta paleta sin aprobación explícita del usuario.
 
-**Uso**:
-- Botones primarios: `#0466C8` → `#0353A4` (hover)
-- Botones acción: `#FFC300` → `#FFD60A` (hover)
-- Acentos: `#FFC300` para tasas y descuentos
+**Modo oscuro**: Usar Deep Ocean (`#052659`) como superficie principal, Blue Electric como acento, texto en blanco/Sky Mist.
+
+**Gradientes de hero recomendados**:
+```css
+/* Hero oscuro (usado en /creditos y comparadores) */
+background: linear-gradient(145deg, hsl(211 53% 6%) 0%, hsl(216 89% 11%) 38%, hsl(237 70% 18%) 68%, hsl(211 53% 8%) 100%);
+
+/* Gradiente de marca */
+background: linear-gradient(135deg, #052659 0%, #303AE4 50%, #052659 100%);
+```
+
+---
+
+### Tipografía — OBLIGATORIA
+
+| Fuente | Pesos disponibles | Uso |
+|--------|------------------|-----|
+| **Syne** | Bold (700) | Títulos H1–H5, display/hero text |
+| **Poppins** | Light (300), Regular (400), Semibold (600) | Subtítulos, body, labels, UI text |
+
+**Reglas tipográficas — NO ignorar:**
+- H1/H2 de secciones: siempre Syne Bold. NUNCA Poppins en headings principales.
+- Cuerpo de texto, descripciones, párrafos: siempre Poppins Regular (400).
+- Labels, badges, botones: Poppins Semibold (600).
+- PROHIBIDO usar Inter, Roboto, DM Sans, o cualquier fuente no listada arriba.
+- Tamaño mínimo de body: 16px / 1rem.
+- Line-height para body: 1.6–1.7. Para headings: 1.1–1.2.
+
+**Escala Syne Bold (headings/display):**
+- `text-7xl` (≈74pt) — H1 de sección
+- `text-5xl` (≈52pt) — H2
+- `text-4xl` (≈42pt) — H3
+- `text-3xl` (≈36pt) — H4/H5
+
+**Escala Poppins:**
+- `text-xl` (20px) — Subtítulo regular
+- `text-base` (16px) — Cuerpo de texto
+- `text-sm` (14px) — Labels, metadata
+- `text-xs` (12px) — Texto pequeño, captions
+
+**Implementación en Tailwind** (clases que deben usarse):
+```tsx
+// Heading principal
+<h1 className="font-display font-bold text-5xl tracking-tight">
+
+// Subtítulo
+<p className="font-sans font-semibold text-xl">
+
+// Body
+<p className="font-sans font-normal text-base leading-relaxed">
+```
+*(donde `font-display` = Syne, `font-sans` = Poppins según `tailwind.config.ts`)*
+
+---
+
+### Logo — Reglas de Uso
+
+**Tres piezas del sistema:**
+1. **Imagotipo** (símbolo + wordmark) — versión PRINCIPAL, usar siempre que el espacio lo permita
+2. **Logotipo** (solo wordmark "financebro") — uso secundario, cuando el isotipo ya está presente
+3. **Isotipo** (símbolo "F" geométrico de 3 polígonos) — favicons, app icons, espacios reducidos
+
+**Variantes de color:**
+- `imagotipo-color.svg` / `isotipo-color.svg` → sobre fondo blanco o gris claro
+- `imagotipo-negativo.svg` / `isotipo-negativo.svg` → sobre Deep Ocean, Blue Electric o fondos oscuros/imagen
+- NUNCA usar la versión color sobre fondos oscuros ni la versión negativa sobre fondos claros
+
+**Tamaños mínimos:**
+- Imagotipo / Logotipo: 80px de ancho mínimo
+- Isotipo: 35px de ancho mínimo
+
+**Zona segura:** Espacio libre equivalente al alto del símbolo en todos los lados.
+
+**Archivos** (en `public/brand/logos/`):
+- SVG: `svg/imagotipo-color.svg`, `svg/imagotipo-negativo.svg`, `svg/isotipo-color.svg`, `svg/simbolo-color.svg`
+- PNG: versiones en `png/` con fondos transparentes
+
+---
+
+### Iconografía
+
+- Estilo: **line icons bicolor**
+- Color principal del trazo: Deep Ocean `#052659`
+- Color de acento: Blue Electric `#303AE4`
+- Stroke uniforme, sin relleno sólido
+- En la UI usar `@phosphor-icons/react` o Radix UI Icons como base, pero pintados con los colores de marca
+- Archivos de íconos de marca: `public/brand/icons/svg/` y `public/brand/icons/png/`
+
+---
+
+### Patrones Decorativos
+
+- Patrón basado en repetición del isotipo "F" en distintos tamaños y opacidades
+- Archivos en `public/brand/patterns/` — 5 variantes de color
+- Usar como fondos de sección, overlays sutiles o elementos decorativos
+- Opacidad recomendada al usarlos como overlay: 5–15%
+
+---
+
+### Reglas Generales de UI — SIEMPRE APLICAR
+
+1. **Nunca** introducir colores, fuentes o estilos fuera del sistema de marca sin aprobación.
+2. **Nunca** usar gradientes púrpura-azul, neón, cyan, o glassmorphism genérico.
+3. **Nunca** usar `#000000` puro para texto; usar `#0D1B2A` (Dark Blue).
+4. **Nunca** usar `#ffffff` puro para fondos si hay alternativa con tinte de Sky Mist.
+5. **Siempre** usar Syne para headings y Poppins para body/UI.
+6. **Siempre** usar Blue Electric como color de botones primarios.
+7. **Siempre** usar Sunset Orange para badges, highlights y CTAs secundarios de énfasis.
+8. Hero sections oscuras: gradiente Deep Ocean → Blue Electric, texto en blanco.
 
 ---
 

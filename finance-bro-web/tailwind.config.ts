@@ -14,8 +14,10 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['Hanken Grotesk', 'sans-serif'],
-        serif: ['Hanken Grotesk', 'serif'],
+        /* Body, UI, labels — Poppins 300/400/600 */
+        sans: ['Poppins', 'system-ui', 'sans-serif'],
+        /* Display headings — Syne 700 */
+        display: ['Syne', 'system-ui', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -66,6 +68,18 @@ export default {
           good: "hsl(var(--rate-good))",
           average: "hsl(var(--rate-average))",
           high: "hsl(var(--rate-high))",
+        },
+        /* ── Brand color aliases — use in components ─────────── */
+        brand: {
+          electric: "#303AE4",   /* Blue Electric — primario 35% */
+          ocean:    "#052659",   /* Deep Ocean    — secundario 25% */
+          mist:     "#C2E8FF",   /* Sky Mist      — fondos 20% */
+          sunset:   "#FBB347",   /* Sunset Orange — acento 10% */
+          dark:     "#0D1B2A",   /* Dark Blue     — contraste 10% */
+          /* Tints for backgrounds and subtle uses */
+          "electric-subtle": "hsl(237 77% 54% / 0.10)",
+          "mist-subtle":     "hsl(203 50% 96%)",
+          "sunset-subtle":   "hsl(36 96% 63% / 0.15)",
         },
       },
       borderRadius: {

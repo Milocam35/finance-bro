@@ -273,6 +273,203 @@ Bancos → n8n (scraping diario 6AM)
 
 ---
 
+## Diseño y Branding
+
+Identidad visual completa definida en el Manual de Marca oficial de FinanceBro.  
+Todos los assets están disponibles en `finance-bro-web/public/brand/`.
+
+---
+
+### Paleta de Colores
+
+La paleta está compuesta por 5 colores con proporciones de uso definidas.
+
+| Token | Nombre | Hex | HSL | Proporción | Uso principal |
+|-------|--------|-----|-----|-----------|---------------|
+| `brand-electric` | **Blue Electric** | `#303AE4` | `237 77% 54%` | 35% | Primario — botones, logo, CTAs, links |
+| `brand-ocean` | **Deep Ocean** | `#052659` | `216 89% 18%` | 25% | Secundario — navbar, headers, fondos oscuros |
+| `brand-mist` | **Sky Mist** | `#C2E8FF` | `203 100% 88%` | 20% | Neutro — fondos claros, equilibrio visual |
+| `brand-sunset` | **Sunset Orange** | `#FBB347` | `36 96% 63%` | 10% | Acento — badges, highlights, énfasis puntual |
+| `brand-dark` | **Dark Blue** | `#0D1B2A` | `211 53% 11%` | 10% | Texto principal sobre fondo claro |
+
+**Reglas de color:**
+- Los fondos de marca son **mesh gradients** combinando los 5 colores, dominados por Blue Electric y Deep Ocean
+- Nunca usar Blue Electric como fondo extenso de texto de cuerpo — solo en elementos de acento
+- Sunset Orange se reserva para highlights puntuales; el overuse lo debilita
+- Sobre fondos azul oscuro siempre usar texto blanco o Sky Mist, nunca gris neutro
+
+**Archivos de gradientes disponibles:**
+
+| Archivo | Ruta pública |
+|---------|-------------|
+| Gradiente 01 | `/brand/gradients/gradient-01.jpg` |
+| Gradiente 02 | `/brand/gradients/gradient-02.jpg` |
+| Gradiente 03 | `/brand/gradients/gradient-03.jpg` |
+| Gradiente 04 | `/brand/gradients/gradient-04.jpg` |
+
+---
+
+### Tipografía
+
+Dos familias con roles distintos y complementarios.
+
+#### Syne — Display / Titulares
+
+| Uso | Tamaño ref. | Peso |
+|-----|-------------|------|
+| Hero / Display principal | 88pt | Bold 700 |
+| H1 de sección | 74pt | Bold 700 |
+| H2 | 62pt | Bold 700 |
+| H3 | 52pt | Bold 700 |
+| H4 | 42pt | Bold 700 |
+| H5 | 36pt | Bold 700 |
+
+#### Poppins — Cuerpo / UI
+
+| Uso | Tamaño ref. | Peso |
+|-----|-------------|------|
+| Subtítulo grande | 25pt | Semibold 600 |
+| Subtítulo regular | 20pt | Semibold 600 |
+| Cuerpo de texto | 16pt | Regular 400 |
+| Labels / captions | 12pt | Light 300 |
+
+**Reglas tipográficas:**
+- Syne se usa **exclusivamente** en títulos y display — nunca en párrafos
+- Poppins Light solo para textos secundarios y captions, nunca en titulares
+- No mezclar más de dos familias en una misma pantalla
+- Descarga: `/brand/fonts/Syne.zip` y `/brand/fonts/Poppins.zip`
+
+---
+
+### Sistema de Logos
+
+El sistema de identidad tiene tres piezas con aplicaciones diferentes.
+
+#### Las tres piezas
+
+| Pieza | Descripción | Uso | Tamaño mínimo |
+|-------|-------------|-----|---------------|
+| **Imagotipo** | Símbolo F + wordmark "FinanceBro" | Versión **principal** en toda comunicación | 80px ancho |
+| **Logotipo** | Solo wordmark "FinanceBro" | Uso secundario cuando el símbolo ya está presente | 80px ancho |
+| **Isotipo / Símbolo** | Solo el símbolo geométrico F | App icon, favicon, espacios reducidos | 35px ancho |
+
+#### Construcción del símbolo
+
+El isotipo es un **F geométrico** formado por tres polígonos en Blue Electric (`#303AE4`):
+- **Barra horizontal superior** — triángulo trapecio orientado a la derecha
+- **Barra vertical izquierda** — rectángulo diagonal que define la altura
+- **Detalle central** — triángulo de remate en la intersección
+
+#### Variantes de color
+
+| Variante | Descripción | Cuándo usar |
+|----------|-------------|-------------|
+| **Color** | Símbolo en Blue Electric + wordmark en Dark Blue | Fondos blancos o claros |
+| **Positivo** | Todo en Dark Blue (`#0D1B2A`) | Fondos muy claros, impresión monocromo |
+| **Negativo** | Todo en blanco (`#FFFFFF`) | Fondos oscuros, Deep Ocean, Blue Electric, fotografías |
+
+#### Archivos disponibles
+
+```
+/brand/logos/
+├── svg/
+│   ├── imagotipo-color.svg       ← USO PRINCIPAL en web
+│   ├── imagotipo-negativo.svg    ← sobre fondos azul/oscuro
+│   ├── imagotipo-positivo.svg
+│   ├── logotipo-color.svg
+│   ├── logotipo-negativo.svg
+│   ├── logotipo-positivo.svg
+│   ├── simbolo-color.svg         ← favicon / app icon
+│   ├── simbolo-negativo.svg
+│   └── simbolo-positivo.svg
+├── png/                          ← mismas variantes
+└── jpg/                          ← variantes color y positivo
+```
+
+**Zona de seguridad:** el espacio libre alrededor del logo debe ser ≥ la altura del símbolo aislado.
+
+#### Reglas de uso del logo
+
+✅ **Permitido**
+- Logo color sobre fondo blanco o Sky Mist
+- Logo negativo (blanco) sobre Deep Ocean, Blue Electric o fotografías oscuras
+- Escalar proporcionalmente manteniendo relación de aspecto
+
+❌ **Prohibido**
+- Cambiar los colores del logo por colores no definidos en la paleta
+- Deformar, rotar o sesgar el logo
+- Usar el logo sobre fondos que no generen suficiente contraste
+- Agregar sombras, contornos o efectos visuales al logo
+- Usar por debajo del tamaño mínimo (80px imagotipo / 35px isotipo)
+
+---
+
+### Iconografía
+
+10 iconos de marca con estilo **line icon bicolor**.
+
+**Estilo:** trazos en Deep Ocean (`#052659`) con detalles de acento en Blue Electric (`#303AE4`). Stroke uniforme, sin relleno sólido.
+
+| Icono | Descripción | Archivo SVG | Archivo PNG |
+|-------|-------------|-------------|-------------|
+| Buscar | Lupa de búsqueda | `/brand/icons/svg/buscar.svg` | `/brand/icons/png/buscar.png` |
+| Dinero | Billete / moneda | `/brand/icons/svg/dinero.svg` | `/brand/icons/png/dinero.png` |
+| Dinero 2 | Variante billete | `/brand/icons/svg/dinero-2.svg` | `/brand/icons/png/dinero-2.png` |
+| Dinero 3 | Variante monedas | `/brand/icons/svg/dinero-3.svg` | `/brand/icons/png/dinero-3.png` |
+| Esquema | Diagrama / estructura | `/brand/icons/svg/esquema.svg` | `/brand/icons/png/esquema.png` |
+| Flecha | Dirección / acción | `/brand/icons/svg/flecha.svg` | `/brand/icons/png/flecha.png` |
+| Gráfico | Chart de barras | `/brand/icons/svg/grafico.svg` | `/brand/icons/png/grafico.png` |
+| Gráfico 2 | Variante chart línea | `/brand/icons/svg/grafico-2.svg` | `/brand/icons/png/grafico-2.png` |
+| Nube | Nube / cloud | `/brand/icons/svg/nube.svg` | `/brand/icons/png/nube.png` |
+| Porcentaje | Símbolo % / tasa | `/brand/icons/svg/porcentaje.svg` | `/brand/icons/png/porcentaje.png` |
+
+**Nota:** Para la UI del producto se usa la librería **Lucide React** (ya instalada). Los iconos de marca se usan en materiales de comunicación, presentaciones y piezas gráficas.
+
+---
+
+### Patrones de Marca
+
+Patrón decorativo basado en la repetición del isotipo F en distintos tamaños y opacidades. Disponible en las 5 variantes de color de la paleta.
+
+| Color | Archivos |
+|-------|---------|
+| **Blue Electric** | `/brand/patterns/blue-electric/patron-01.png` · `patron-02.png` · `patron-03.png` |
+| **Dark Blue** | `/brand/patterns/dark-blue/patron-01.png` · `patron-02.png` · `patron-03.png` |
+| **Deep Ocean** | `/brand/patterns/deep-ocean/patron-01.png` · `patron-02.png` · `patron-03.png` |
+| **Sky Mist** | `/brand/patterns/sky-mist/patron-01.png` · `patron-02.png` · `patron-03.png` |
+| **Sunset Orange** | `/brand/patterns/sunset-orange/patron-01.png` · `patron-02.png` · `patron-03.png` |
+
+Los tres archivos por color corresponden a variaciones de densidad/escala del patrón.
+
+---
+
+### Assets de Marca — Índice Completo
+
+```
+finance-bro-web/public/brand/
+├── logos/
+│   ├── svg/    (9 archivos — formato recomendado para web)
+│   ├── png/    (9 archivos — con fondo transparente)
+│   └── jpg/    (6 archivos — variantes color y positivo)
+├── gradients/
+│   └── gradient-01.jpg … gradient-04.jpg
+├── icons/
+│   ├── svg/    (10 iconos de marca)
+│   └── png/    (10 iconos de marca)
+├── patterns/
+│   ├── blue-electric/   (3 variantes)
+│   ├── dark-blue/       (3 variantes)
+│   ├── deep-ocean/      (3 variantes)
+│   ├── sky-mist/        (3 variantes)
+│   └── sunset-orange/   (3 variantes)
+├── fonts/
+│   ├── Syne.zip
+│   └── Poppins.zip
+└── manual-de-marca.pdf
+```
+
+---
+
 ## Estructura del Repositorio
 
 ```

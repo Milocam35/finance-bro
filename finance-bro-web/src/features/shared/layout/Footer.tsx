@@ -1,4 +1,6 @@
-import { Search, Mail, MapPin } from "lucide-react";
+import { motion } from "framer-motion";
+import { Mail, MapPin } from "lucide-react";
+import { useTheme } from "@/components/theme-provider";
 
 const footerLinks = {
   productos: [
@@ -22,7 +24,6 @@ const footerLinks = {
   ],
 };
 
-// Componentes SVG para iconos de redes sociales oficiales
 const FacebookIcon = ({ className }: { className?: string }) => (
   <svg className={className} fill="currentColor" viewBox="0 0 24 24">
     <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
@@ -61,139 +62,200 @@ const socialLinks = [
   { Icon: TikTokIcon, href: "#", label: "TikTok" },
 ];
 
-export function Footer() {
-  return (
-    <footer className="relative bg-[#001233] overflow-hidden">
-      {/* Gradiente sutil de fondo */}
-      <div className="absolute inset-0 bg-gradient-to-b from-[#001845] via-[#001233] to-[#000814] opacity-80" />
+const colVariants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.06 } },
+};
 
-      {/* Patrón decorativo */}
-      <div className="absolute inset-0 opacity-5">
-        <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <pattern id="footer-grid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" strokeWidth="0.5"/>
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#footer-grid)" />
-        </svg>
+const itemVariants = {
+  hidden: { opacity: 0, y: 14 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] } },
+};
+
+export function Footer() {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
+  return (
+    <footer className="relative overflow-hidden bg-muted/30 dark:bg-[#07111E]">
+
+      {/* ── Dark mode: colored mesh blobs ── */}
+      <div className="hidden dark:block absolute inset-0 pointer-events-none overflow-hidden">
+        <div
+          className="absolute -top-[30%] -left-[10%] w-[60%] h-[80%] rounded-full"
+          style={{
+            background: "radial-gradient(circle, #303AE4 0%, transparent 65%)",
+            filter: "blur(90px)",
+            opacity: 0.14,
+          }}
+        />
+        <div
+          className="absolute -bottom-[20%] right-[0%] w-[50%] h-[70%] rounded-full"
+          style={{
+            background: "radial-gradient(circle, #FBB347 0%, transparent 65%)",
+            filter: "blur(100px)",
+            opacity: 0.10,
+          }}
+        />
+        <div
+          className="absolute top-[20%] left-[35%] w-[55%] h-[65%] rounded-full"
+          style={{
+            background: "radial-gradient(circle, #052659 0%, transparent 65%)",
+            filter: "blur(70px)",
+            opacity: 0.55,
+          }}
+        />
       </div>
 
-      <div className="relative z-10 container mx-auto px-4 py-12 lg:py-16">
-        <div className="grid gap-12 lg:grid-cols-5">
-          {/* Brand - Más ancho */}
-          <div className="lg:col-span-2">
-            <a href="/" className="inline-block mb-6">
-              <span
-                className="text-2xl font-bold tracking-tight leading-none inline-flex items-baseline bg-gradient-to-r from-white via-white to-white/90 bg-clip-text text-transparent"
-                style={{ fontFamily: "'Hanken Grotesk', sans-serif", fontWeight: 900 }}
-              >
-                <span>Finance</span>
-                <span>Br</span>
-                <span className="inline-flex items-center justify-center" style={{ marginLeft: '0.03em', transform: 'translateY(3px)' }}>
-                  <Search className="text-white" size={20} strokeWidth={4} />
-                </span>
-              </span>
+      {/* ── Light mode: subtle neutral bubbles + grid ── */}
+      <div className="dark:hidden absolute inset-0 pointer-events-none overflow-hidden">
+        {/* Subtle tinted orbs — very low opacity, neutral */}
+        <div
+          className="absolute -top-[20%] -left-[10%] w-[55%] h-[70%] rounded-full"
+          style={{
+            background: "radial-gradient(circle, rgba(48,58,228,0.04) 0%, transparent 65%)",
+            filter: "blur(70px)",
+          }}
+        />
+        <div
+          className="absolute -bottom-[20%] right-[0%] w-[45%] h-[60%] rounded-full"
+          style={{
+            background: "radial-gradient(circle, rgba(251,179,71,0.05) 0%, transparent 65%)",
+            filter: "blur(80px)",
+          }}
+        />
+        {/* Grid pattern — same as old footer */}
+        <div className="absolute inset-0 opacity-[0.35]">
+          <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <pattern id="footer-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" strokeWidth="0.5" className="text-border" />
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#footer-grid)" />
+          </svg>
+        </div>
+      </div>
+
+      {/* Top divider */}
+      <div className="relative h-px bg-border dark:bg-gradient-to-r dark:from-transparent dark:via-white/10 dark:to-transparent" />
+
+      <div className="relative z-10 container mx-auto px-4 pt-16 pb-10 lg:pt-24 lg:pb-12">
+
+        {/* ── Editorial statement ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          className="mb-14 lg:mb-20 text-center"
+        >
+          <p className="text-[10px] font-semibold tracking-[0.18em] uppercase mb-4 text-center text-muted-foreground dark:text-[rgba(194,232,255,0.38)]">
+            03 — FinanceBro · Colombia
+          </p>
+          <h2
+            className="font-black tracking-tight leading-[0.95] text-foreground dark:text-white text-center"
+            style={{ fontSize: "clamp(2rem, 4vw, 3.5rem)" }}
+          >
+            Finanzas <span className="text-primary dark:text-[#C2E8FF]">sin misterios.</span>
+          </h2>
+        </motion.div>
+
+        {/* ── Main columns ── */}
+        <motion.div
+          variants={colVariants}
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true }}
+          className="grid gap-10 sm:grid-cols-2 lg:grid-cols-5 mb-14 lg:mb-20"
+        >
+          {/* Brand column */}
+          <motion.div variants={itemVariants} className="sm:col-span-2 lg:col-span-2 space-y-6">
+            <a href="/" className="inline-block">
+              <img
+                src={isDark ? "/brand/logos/png/imagotipo-negativo.png" : "/brand/logos/png/imagotipo-color.png"}
+                alt="FinanceBro"
+                className="h-7 w-auto select-none"
+                draggable={false}
+              />
             </a>
-            <p className="text-white/70 text-sm mb-6 max-w-sm leading-relaxed">
-              Tu plataforma de comparación financiera. Encuentra los mejores
-              productos financieros de forma transparente y gratuita.
+
+            <p className="text-sm leading-relaxed max-w-xs text-muted-foreground dark:text-[rgba(194,232,255,0.48)]">
+              Comparamos productos financieros de más de 20 entidades para que
+              tomes decisiones informadas, sin costo y sin letra pequeña.
             </p>
 
-            {/* Información de contacto */}
-            <div className="space-y-3 text-sm text-white/70 mb-6">
-              <div className="flex items-center gap-3 hover:text-white/90 transition-colors">
-                <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
-                  <Mail className="w-4 h-4" />
+            {/* Contact */}
+            <div className="space-y-2.5">
+              <a
+                href="mailto:financebrocol@gmail.com"
+                className="flex items-center gap-2.5 text-sm text-muted-foreground hover:text-foreground dark:hover:text-white/90 transition-colors duration-200"
+              >
+                <div className="w-7 h-7 rounded-lg bg-muted dark:bg-white/[0.06] border border-border dark:border-white/[0.08] flex items-center justify-center shrink-0">
+                  <Mail className="w-3.5 h-3.5" />
                 </div>
-                <a href="mailto:contacto@financebro.com">contacto@financebro.com</a>
-              </div>
-              <div className="flex items-center gap-3 hover:text-white/90 transition-colors">
-                <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
-                  <MapPin className="w-4 h-4" />
+                financebrocol@gmail.com
+              </a>
+              <div className="flex items-center gap-2.5 text-sm text-muted-foreground/60">
+                <div className="w-7 h-7 rounded-lg bg-muted dark:bg-white/[0.06] border border-border dark:border-white/[0.08] flex items-center justify-center shrink-0">
+                  <MapPin className="w-3.5 h-3.5" />
                 </div>
-                <span>Bogotá, Colombia</span>
+                Bogotá, Colombia
               </div>
             </div>
 
-            {/* Redes sociales */}
-            <div className="flex gap-3">
+            {/* Social links */}
+            <div className="flex gap-2">
               {socialLinks.map((social) => (
-                <a
+                <motion.a
                   key={social.label}
                   href={social.href}
                   aria-label={social.label}
-                  className="w-10 h-10 rounded-lg bg-white/10 hover:bg-[#0466C8] flex items-center justify-center transition-all duration-300 group"
+                  whileHover={{ y: -3, transition: { duration: 0.15 } }}
+                  whileTap={{ scale: 0.9 }}
+                  className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors duration-200 bg-muted hover:bg-primary dark:bg-white/[0.06] dark:hover:bg-primary border border-border dark:border-white/[0.08] text-muted-foreground hover:text-white dark:text-white/55 dark:hover:text-white"
                 >
-                  <social.Icon className="w-5 h-5 text-white/70 group-hover:text-white transition-colors" />
-                </a>
+                  <social.Icon className="w-4 h-4" />
+                </motion.a>
               ))}
             </div>
-          </div>
+          </motion.div>
 
-          {/* Productos */}
-          <div>
-            <h4 className="font-semibold text-white mb-4 text-base">Productos</h4>
-            <ul className="space-y-3">
-              {footerLinks.productos.map((link) => (
-                <li key={link.label}>
-                  <a
-                    href={link.href}
-                    className="text-sm text-white/70 hover:text-white transition-colors inline-block hover:translate-x-1 duration-200"
-                  >
-                    {link.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
+          {/* Link columns */}
+          {[
+            { title: "Productos", links: footerLinks.productos },
+            { title: "Empresa", links: footerLinks.empresa },
+            { title: "Legal", links: footerLinks.legal },
+          ].map((col) => (
+            <motion.div key={col.title} variants={itemVariants}>
+              <p className="text-[10px] font-semibold tracking-[0.16em] uppercase mb-5 text-muted-foreground/60 dark:text-[rgba(194,232,255,0.32)]">
+                {col.title}
+              </p>
+              <ul className="space-y-2.5">
+                {col.links.map((link) => (
+                  <li key={link.label}>
+                    <a
+                      href={link.href}
+                      className="text-sm text-muted-foreground hover:text-foreground dark:text-[rgba(194,232,255,0.52)] dark:hover:text-white/90 transition-colors duration-200"
+                    >
+                      {link.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
+          ))}
+        </motion.div>
 
-          {/* Empresa */}
-          <div>
-            <h4 className="font-semibold text-white mb-4 text-base">Empresa</h4>
-            <ul className="space-y-3">
-              {footerLinks.empresa.map((link) => (
-                <li key={link.label}>
-                  <a
-                    href={link.href}
-                    className="text-sm text-white/70 hover:text-white transition-colors inline-block hover:translate-x-1 duration-200"
-                  >
-                    {link.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Legal */}
-          <div>
-            <h4 className="font-semibold text-white mb-4 text-base">Legal</h4>
-            <ul className="space-y-3">
-              {footerLinks.legal.map((link) => (
-                <li key={link.label}>
-                  <a
-                    href={link.href}
-                    className="text-sm text-white/70 hover:text-white transition-colors inline-block hover:translate-x-1 duration-200"
-                  >
-                    {link.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-
-        {/* Bottom - Separador más sutil */}
-        <div className="mt-12 pt-8 border-t border-white/10">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-sm text-white/60">
-              © {new Date().getFullYear()} FinanceBro. Todos los derechos reservados.
-            </p>
-            <p className="text-xs text-white/40 max-w-lg text-center md:text-right">
-              La información presentada es de carácter informativo. Los términos y
-              condiciones finales son establecidos por cada institución financiera.
-            </p>
-          </div>
+        {/* ── Bottom bar ── */}
+        <div className="pt-6 border-t border-border dark:border-white/[0.07] flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+          <p className="text-xs text-muted-foreground/60 dark:text-[rgba(194,232,255,0.3)]">
+            © {new Date().getFullYear()} FinanceBro. Todos los derechos reservados.
+          </p>
+          <p className="text-[11px] max-w-sm md:text-right text-muted-foreground/40 dark:text-[rgba(194,232,255,0.2)]">
+            Información de carácter informativo. Los términos finales son
+            establecidos por cada institución financiera.
+          </p>
         </div>
       </div>
     </footer>

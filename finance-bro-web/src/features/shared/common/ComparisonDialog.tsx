@@ -154,7 +154,7 @@ export function ComparisonDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-auto">
+      <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="text-lg">
             Comparando {productos.length} productos
@@ -172,7 +172,7 @@ export function ComparisonDialog({
             <thead>
               <tr>
                 {/* Columna de etiquetas */}
-                <th className="text-left py-2 pr-4 text-muted-foreground font-medium text-xs w-32 align-bottom">
+                <th className="text-left py-2 pr-3 text-muted-foreground font-medium text-xs w-20 sm:w-32 align-bottom">
                   &nbsp;
                 </th>
                 {/* Columna por producto */}
@@ -215,7 +215,7 @@ export function ComparisonDialog({
                   key={row.label}
                   className={ri % 2 === 0 ? "bg-muted/20" : ""}
                 >
-                  <td className="py-2.5 pr-4 text-xs font-medium text-muted-foreground whitespace-nowrap">
+                  <td className="py-2.5 pr-3 text-xs font-medium text-muted-foreground whitespace-nowrap">
                     {row.label}
                   </td>
                   {productos.map((p, pi) => {
@@ -244,7 +244,7 @@ export function ComparisonDialog({
 
         {/* Botones de solicitar */}
         <div className="flex gap-3 overflow-x-auto pb-1">
-          <div className="w-32 shrink-0" />
+          <div className="w-20 sm:w-32 shrink-0" />
           {productos.map((p) => {
             const url = p.url_redireccion || p.url_extraccion;
             return (
@@ -254,7 +254,7 @@ export function ComparisonDialog({
                     href={url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-xs font-medium text-[#0466C8] hover:underline"
+                    className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
                   >
                     <ExternalLink className="w-3 h-3" />
                     Solicitar

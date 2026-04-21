@@ -7,10 +7,6 @@ import {
   ExternalLink,
   FileText,
   RotateCcw,
-  ArrowRight,
-  Clock,
-  Wallet,
-  TrendingDown,
   CalendarDays,
   Scale,
   Calculator,
@@ -164,8 +160,9 @@ export function EducationCard({
       initial={{ opacity: 0, y: 24 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      transition={{ duration: 0.45, delay: index * 0.07 }}
-      className="h-[540px]"
+      transition={{ duration: 0.45, delay: index * 0.07, ease: [0.22, 1, 0.36, 1] }}
+      whileHover={{ y: -5, transition: { duration: 0.2, ease: [0.25, 1, 0.5, 1] } }}
+      className="h-[360px]"
       style={{ perspective: "1200px" }}
     >
       <div
@@ -189,8 +186,8 @@ export function EducationCard({
             {/* Header */}
             <div className="flex items-start gap-3.5 mb-5">
               <div
-                className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0 border border-border/50 overflow-hidden"
-                style={{ backgroundColor: bankColor.bg }}
+                className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0 overflow-hidden"
+                style={{ backgroundColor: "hsl(var(--primary) / 0.08)", border: "1px solid hsl(var(--primary) / 0.15)" }}
               >
                 {logo ? (
                   <img
@@ -225,7 +222,7 @@ export function EducationCard({
             </div>
 
             {/* Badges */}
-            <div className="flex gap-1.5 mb-5 flex-wrap">
+            <div className="flex gap-1.5 mb-4 flex-wrap">
               {producto.tipo_pago && (
                 <span className="text-[10px] font-medium px-2.5 py-1 rounded-full border bg-muted text-muted-foreground border-border">
                   {producto.tipo_pago.nombre}
@@ -238,8 +235,8 @@ export function EducationCard({
               )}
             </div>
 
-            {/* Rate display */}
-            <div className="rounded-xl p-4 mb-4" style={{ backgroundColor: bankColor.bg }}>
+            {/* Rate + cuota box */}
+            <div className="rounded-xl p-4 mb-4 bg-primary/[0.07] border border-primary/[0.12]">
               <div className="flex items-end justify-between">
                 <div>
                   <p className="text-[11px] text-muted-foreground mb-1 flex items-center gap-1">
@@ -263,86 +260,35 @@ export function EducationCard({
                       ? `${producto.tasa_vigente.tasa_minima!.toFixed(2)}%`
                       : `${displayRate.toFixed(2)}%`}
                   </p>
-                  {producto.tasa_vigente?.es_rango && (producto.tasa_vigente.tasa_minima ?? 0) > 0 && producto.tasa_vigente.tasa_maxima && (
-                    <p className="text-[10px] text-muted-foreground mt-1">
-                      hasta {producto.tasa_vigente.tasa_maxima.toFixed(2)}%
-                    </p>
-                  )}
+                  <div className="h-3.5">
+                    {producto.tasa_vigente?.es_rango && (producto.tasa_vigente.tasa_minima ?? 0) > 0 && producto.tasa_vigente.tasa_maxima && (
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        hasta {producto.tasa_vigente.tasa_maxima.toFixed(2)}%
+                      </p>
+                    )}
+                  </div>
                 </div>
-                {/* Cuota estimada — lado derecho del recuadro de tasa */}
                 <div className="text-right">
                   <p className="text-[9px] text-muted-foreground/70 mb-0.5 flex items-center justify-end gap-1">
                     <Calculator className="w-3 h-3" />
                     Cuota estimada
                   </p>
-                  <p className="text-3xl font-extrabold text-foreground leading-none">
+                  <p className="text-3xl font-extrabold text-primary leading-none">
                     {simulacionResult
                       ? new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(simulacionResult.cuota_mensual)
                       : <span className="text-muted-foreground/40 font-normal text-[11px]">Calculando…</span>
                     }
                   </p>
-                  {simulacionResult && (
-                    <p className="text-[9px] text-muted-foreground/50 mt-0.5">
-                      {termMonths >= 12 ? `${Math.floor(termMonths / 12)} años` : `${termMonths}m`} · /mes
-                    </p>
-                  )}
+                  <div className="h-3.5">
+                    {simulacionResult && (
+                      <p className="text-[9px] text-muted-foreground/50 mt-0.5">
+                        {termMonths >= 12 ? `${Math.floor(termMonths / 12)} años` : `${termMonths}m`} · /mes
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-
-            {/* Description */}
-            {producto.descripcion && (
-              <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2 mb-3">
-                {producto.descripcion}
-              </p>
-            )}
-
-            {/* Quick stats */}
-            <div className="grid grid-cols-2 gap-2.5 mb-3">
-              {(producto.monto?.monto_maximo ?? 0) > 0 && (
-                <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/40">
-                  <Wallet className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-[9px] text-muted-foreground leading-tight">Monto máx.</p>
-                    <p className="text-[11px] font-semibold text-foreground truncate">
-                      {formatCurrency(producto.monto!.monto_maximo!)}
-                    </p>
-                  </div>
-                </div>
-              )}
-              {(producto.monto?.plazo_maximo_meses ?? 0) > 0 && (
-                <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/40">
-                  <Clock className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
-                  <div>
-                    <p className="text-[9px] text-muted-foreground leading-tight">Plazo máx.</p>
-                    <p className="text-[11px] font-semibold text-foreground">
-                      {producto.monto!.plazo_maximo_meses! >= 12
-                        ? `${Math.floor(producto.monto!.plazo_maximo_meses! / 12)} años`
-                        : `${producto.monto!.plazo_maximo_meses!} meses`}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Benefits */}
-            {(producto.beneficios?.length ?? 0) > 0 && (
-              <div className="space-y-1.5 mb-3 flex-1">
-                {producto.beneficios!.slice(0, 2).map((beneficio, i) => (
-                  <div key={i} className="flex items-start gap-1.5">
-                    <Check className="w-3 h-3 shrink-0 mt-0.5" style={{ color: bankColor.primary }} />
-                    <span className="text-[10px] text-muted-foreground leading-tight line-clamp-1">
-                      {beneficio.descripcion}
-                    </span>
-                  </div>
-                ))}
-                {producto.beneficios!.length > 2 && (
-                  <p className="text-[9px] text-muted-foreground/60 pl-[18px]">
-                    +{producto.beneficios!.length - 2} beneficios más
-                  </p>
-                )}
-              </div>
-            )}
 
             {/* Extraction date */}
             {formatExtractionDate(producto.fecha_extraccion) && (
@@ -360,7 +306,9 @@ export function EducationCard({
                 <button
                   onClick={(e) => { e.stopPropagation(); onToggleComparison(); }}
                   className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 transition-colors ${
-                    isInComparison ? "border-[#FFC300] bg-[#FFC300]/10 text-[#FFC300]" : "border-border bg-card text-muted-foreground hover:border-[#FFC300]/50 hover:text-[#FFC300]"
+                    isInComparison
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-primary/40 bg-primary/5 text-primary/70 hover:border-primary hover:bg-primary/10 hover:text-primary"
                   }`}
                   title={isInComparison ? "Quitar de comparación" : "Agregar a comparación"}
                 >
@@ -368,26 +316,25 @@ export function EducationCard({
                 </button>
               )}
               <button
-                onClick={(e) => { e.stopPropagation(); setIsSheetOpen(true); }}
-                className="flex-1 h-9 rounded-xl border border-secondary/30 bg-secondary/5 text-secondary text-xs font-semibold hover:bg-secondary/10 transition-colors flex items-center justify-center gap-1"
+                onClick={() => setIsFlipped(true)}
+                className="w-9 h-9 rounded-xl border border-primary/40 bg-primary/5 text-primary hover:bg-primary/10 hover:border-primary transition-colors flex items-center justify-center shrink-0"
+                title="Más info"
               >
-                <Calculator className="w-3 h-3" />
-                Simular
+                <Info className="w-3.5 h-3.5" />
               </button>
               <button
-                onClick={() => setIsFlipped(true)}
-                className="flex-1 h-9 rounded-xl border border-border text-xs font-medium text-foreground bg-card hover:bg-muted transition-colors flex items-center justify-center gap-1"
+                onClick={(e) => { e.stopPropagation(); setIsSheetOpen(true); }}
+                className="flex-1 h-9 rounded-xl bg-primary hover:bg-primary/90 text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
               >
-                Más info
-                <ArrowRight className="w-3 h-3" />
+                <Calculator className="w-3.5 h-3.5" />
+                Plan de pagos
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); if (productUrl) window.open(productUrl, "_blank", "noopener,noreferrer"); }}
-                className="w-9 h-9 rounded-xl text-primary-foreground flex items-center justify-center shadow-sm transition-all hover:brightness-110"
-                style={{ backgroundColor: bankColor.primary }}
-                title="Solicitar"
+                className="flex-1 h-9 rounded-xl bg-primary hover:bg-primary/90 text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
               >
-                <ChevronRight className="w-4 h-4" />
+                Solicitar
+                <ExternalLink className="w-3.5 h-3.5" />
               </button>
             </div>
 

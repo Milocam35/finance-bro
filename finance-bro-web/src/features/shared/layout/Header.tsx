@@ -1,44 +1,81 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, ChevronDown, Search, CreditCard, Shield, TrendingUp, Building2, LogIn, UserPlus } from "lucide-react";
+import { Menu, X, ChevronDown, LogIn, UserPlus, Sun, Moon, LogOut, User } from "lucide-react";
+import { useTheme } from "@/components/theme-provider";
 
 const navItems = [
   {
     label: "Créditos",
-    icon: Building2,
+    href: "/creditos",
     submenu: [
       { label: "Créditos Hipotecarios", href: "/creditos-hipotecarios", active: true },
       { label: "Créditos de Vehículo", href: "/creditos-vehiculo", active: true },
       { label: "Créditos Educativos", href: "/creditos-educativos", active: true },
-      { label: "Libre Inversión", href: "/creditos-libre-inversion", active: true },
+      { label: "Créditos de Libre Inversión", href: "/creditos-libre-inversion", active: true },
       { label: "Crédito Corporativo", href: "#corporativo", comingSoon: true },
     ],
   },
-  {
-    label: "Inversiones",
-    icon: TrendingUp,
-    href: "#inversiones",
-    comingSoon: true,
-  },
-  {
-    label: "Tarjetas",
-    icon: CreditCard,
-    href: "#tarjetas",
-    comingSoon: true,
-  },
-  {
-    label: "Seguros",
-    icon: Shield,
-    href: "#seguros",
-    comingSoon: true,
-  },
+  { label: "Inversiones", href: "#inversiones", comingSoon: true },
+  { label: "Tarjetas",    href: "#tarjetas",    comingSoon: true },
+  { label: "Seguros",     href: "#seguros",     comingSoon: true },
 ];
 
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
 export function Header() {
+  const navigate = useNavigate();
+  const { theme, toggleTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
   const [isVisible, setIsVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  // Auth state derived from localStorage
+  const [authUser, setAuthUser] = useState<{ nombre: string; email: string } | null>(() => {
+    try {
+      const raw = localStorage.getItem("user");
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // Sync auth state if localStorage changes in another tab
+  useEffect(() => {
+    const onStorage = () => {
+      try {
+        const raw = localStorage.getItem("user");
+        setAuthUser(raw ? JSON.parse(raw) : null);
+      } catch {
+        setAuthUser(null);
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  // Close user dropdown when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const isDark = theme === "dark";
 
   useEffect(() => {
     const controlHeader = () => {
@@ -52,34 +89,55 @@ export function Header() {
       }
       setLastScrollY(currentScrollY);
     };
-
     window.addEventListener("scroll", controlHeader);
     return () => window.removeEventListener("scroll", controlHeader);
   }, [lastScrollY]);
+
+  function handleLogout() {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("user");
+    setAuthUser(null);
+    setUserMenuOpen(false);
+    setMobileMenuOpen(false);
+    navigate("/");
+  }
+
+  const headerBg     = isDark
+    ? "bg-gradient-to-b from-black/60 via-black/40 to-transparent"
+    : "bg-white/95 backdrop-blur-md border-b border-border shadow-sm";
+  const navText      = isDark ? "text-gray-300 hover:text-white" : "text-muted-foreground hover:text-foreground";
+  const navHoverBg   = isDark ? "hover:bg-white/10" : "hover:bg-muted";
+  const iconColor    = isDark ? "text-white/70" : "text-muted-foreground";
+  const mobileIconColor  = isDark ? "text-white" : "text-foreground";
+  const mobileBg         = isDark ? "bg-[#001845] border-t border-white/10" : "bg-white border-t border-border";
+  const mobileItemText   = isDark ? "text-white" : "text-foreground";
+  const mobileSubtext    = isDark ? "text-gray-300" : "text-muted-foreground";
+  const mobileSubBg      = isDark ? "bg-black/20" : "bg-muted/50";
+  const mobileDivider    = isDark ? "border-white/10" : "border-border";
+  const mobileBtnBorder  = isDark ? "border-white/20" : "border-border";
 
   return (
     <motion.header
       initial={{ y: 0 }}
       animate={{ y: isVisible ? 0 : -100 }}
       transition={{ duration: 0.3, ease: "easeInOut" }}
-      className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-b from-black/60 via-black/40 to-transparent transition-all duration-300"
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${headerBg}`}
     >
-      <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-16 lg:h-20">
+      <div className="container mx-auto px-5 sm:px-8">
+        <div className="flex items-center justify-between h-16 lg:h-[72px]">
 
           {/* Logo */}
-          <a href="/" className="flex items-center gap-0">
-            <span className="text-2xl font-bold tracking-tight leading-none inline-flex items-baseline" style={{ fontFamily: "'Hanken Grotesk', sans-serif", fontWeight: 900 }}>
-              <span className="text-white">Finance</span>
-              <span className="text-white">Br</span>
-              <span className="inline-flex items-center justify-center" style={{ marginLeft: '0.03em', transform: 'translateY(3px)' }}>
-                <Search className="text-white" size={20} strokeWidth={4} />
-              </span>
-            </span>
+          <a href="/" className="flex items-center shrink-0">
+            <img
+              src={isDark ? "/brand/logos/png/imagotipo-negativo.png" : "/brand/logos/png/imagotipo-color.png"}
+              alt="FinanceBro"
+              className="h-6 lg:h-7 w-auto select-none"
+              draggable={false}
+            />
           </a>
 
           {/* Desktop Navigation */}
-          <nav className="hidden lg:flex items-center gap-1">
+          <nav className="hidden lg:flex items-center gap-0.5">
             {navItems.map((item) => (
               <div
                 key={item.label}
@@ -87,26 +145,27 @@ export function Header() {
                 onMouseEnter={() => item.submenu && setOpenSubmenu(item.label)}
                 onMouseLeave={() => setOpenSubmenu(null)}
               >
-                <button className="flex items-center gap-1 px-4 py-2 text-sm font-medium text-gray-300 hover:text-white transition-colors rounded-lg hover:bg-white/10">
-                  <item.icon className="w-4 h-4" />
+                <button
+                  className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${navText} ${navHoverBg}`}
+                  onClick={() => item.href && navigate(item.href)}
+                >
                   {item.label}
-                  {item.submenu && <ChevronDown className="w-3 h-3" />}
+                  {item.submenu && <ChevronDown className="w-3.5 h-3.5 opacity-60" />}
                   {item.comingSoon && (
-                    <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-[#FFD60A] text-[#001233] font-semibold">
+                    <span className="ml-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-brand-sunset/15 text-brand-sunset font-semibold">
                       Pronto
                     </span>
                   )}
                 </button>
 
-                {/* Submenu */}
                 <AnimatePresence>
                   {item.submenu && openSubmenu === item.label && (
                     <motion.div
-                      initial={{ opacity: 0, y: 10 }}
+                      initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 10 }}
-                      transition={{ duration: 0.2 }}
-                      className="absolute top-full left-0 mt-1 w-56 bg-card rounded-lg shadow-lg border border-border overflow-hidden"
+                      exit={{ opacity: 0, y: 8 }}
+                      transition={{ duration: 0.18 }}
+                      className="absolute top-full left-0 mt-2 w-60 bg-card rounded-xl shadow-xl border border-border overflow-hidden"
                     >
                       {item.submenu.map((subitem) => (
                         <a
@@ -118,7 +177,7 @@ export function Header() {
                         >
                           {subitem.label}
                           {subitem.comingSoon && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent text-accent-foreground font-semibold">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-brand-sunset/15 text-brand-sunset font-semibold">
                               Pronto
                             </span>
                           )}
@@ -131,38 +190,126 @@ export function Header() {
             ))}
           </nav>
 
-          {/* Right: Beta + Auth buttons */}
-          <div className="hidden lg:flex items-center gap-3">
-            <span className="text-xs font-semibold px-3 py-1 rounded-full bg-[#FFC300]/15 text-[#FFC300] border border-[#FFC300]/30 tracking-wide">
+          {/* Right: Beta + Theme + Auth */}
+          <div className="hidden lg:flex items-center gap-2">
+            <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-brand-sunset/12 text-brand-sunset border border-brand-sunset/25 tracking-wide">
               Beta
             </span>
-            <a
-              href="#login"
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-200"
+            <button
+              onClick={toggleTheme}
+              aria-label={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+              className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${iconColor} ${navHoverBg}`}
             >
-              <LogIn className="w-4 h-4" />
-              Iniciar sesión
-            </a>
-            <a
-              href="#register"
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-[#001233] bg-[#FFC300] hover:bg-[#FFD60A] rounded-lg transition-all duration-200 shadow-md shadow-[#FFC300]/20"
-            >
-              <UserPlus className="w-4 h-4" />
-              Registrarse
-            </a>
+              {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+            </button>
+
+            {authUser ? (
+              /* ── Authenticated: avatar + dropdown ── */
+              <div ref={userMenuRef} className="relative">
+                <button
+                  onClick={() => setUserMenuOpen((v) => !v)}
+                  className="flex items-center gap-2 pl-1 pr-3 py-1 rounded-xl transition-colors hover:bg-muted/60"
+                >
+                  <div className="w-7 h-7 rounded-full bg-brand-electric flex items-center justify-center shrink-0">
+                    <span className="text-[11px] font-bold text-white leading-none">
+                      {getInitials(authUser.nombre)}
+                    </span>
+                  </div>
+                  <span className={`text-sm font-medium max-w-[96px] truncate ${isDark ? "text-white" : "text-foreground"}`}>
+                    {authUser.nombre.split(" ")[0]}
+                  </span>
+                  <ChevronDown className={`w-3 h-3 opacity-50 transition-transform duration-200 ${userMenuOpen ? "rotate-180" : ""} ${isDark ? "text-white" : "text-foreground"}`} />
+                </button>
+
+                <AnimatePresence>
+                  {userMenuOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 8, scale: 0.97 }}
+                      transition={{ duration: 0.16 }}
+                      className="absolute top-full right-0 mt-2 w-56 bg-card rounded-xl shadow-xl border border-border overflow-hidden"
+                    >
+                      {/* User info */}
+                      <div className="px-4 py-3 border-b border-border">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-brand-electric flex items-center justify-center shrink-0">
+                            <span className="text-sm font-bold text-white leading-none">
+                              {getInitials(authUser.nombre)}
+                            </span>
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-foreground truncate">{authUser.nombre}</p>
+                            <p className="text-xs text-muted-foreground truncate">{authUser.email}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Menu items */}
+                      <div className="p-1.5">
+                        <button
+                          onClick={() => { setUserMenuOpen(false); navigate("/perfil"); }}
+                          className="flex items-center gap-2.5 w-full px-3 py-2.5 text-sm text-foreground hover:bg-muted rounded-lg transition-colors"
+                        >
+                          <User className="w-4 h-4 text-muted-foreground" />
+                          Mi perfil
+                        </button>
+                        <button
+                          onClick={handleLogout}
+                          className="flex items-center gap-2.5 w-full px-3 py-2.5 text-sm text-red-500 hover:bg-red-500/8 rounded-lg transition-colors"
+                        >
+                          <LogOut className="w-4 h-4" />
+                          Cerrar sesión
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ) : (
+              /* ── Guest: login + register buttons ── */
+              <>
+                <button
+                  onClick={() => navigate('/login')}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 ${navText} ${navHoverBg}`}
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  Iniciar sesión
+                </button>
+                <button
+                  onClick={() => navigate('/registro')}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-semibold text-brand-dark bg-brand-sunset hover:bg-brand-sunset/90 rounded-lg transition-all duration-200 shadow-sm shadow-brand-sunset/20 dark:shadow-none"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  Registrarse
+                </button>
+              </>
+            )}
           </div>
 
-          {/* Mobile Menu Button */}
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="lg:hidden p-2 rounded-lg hover:bg-white/10 transition-colors"
-          >
-            {mobileMenuOpen ? (
-              <X className="w-6 h-6 text-white" />
-            ) : (
-              <Menu className="w-6 h-6 text-white" />
+          {/* Mobile: Beta badge + menu button */}
+          <div className="lg:hidden flex items-center gap-3">
+            {authUser && (
+              <div className="w-7 h-7 rounded-full bg-brand-electric flex items-center justify-center">
+                <span className="text-[11px] font-bold text-white leading-none">
+                  {getInitials(authUser.nombre)}
+                </span>
+              </div>
             )}
-          </button>
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-brand-sunset/12 text-brand-sunset border border-brand-sunset/25">
+              Beta
+            </span>
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className={`p-2 rounded-lg transition-colors ${navHoverBg}`}
+              aria-label="Menú"
+            >
+              {mobileMenuOpen
+                ? <X className={`w-5 h-5 ${mobileIconColor}`} />
+                : <Menu className={`w-5 h-5 ${mobileIconColor}`} />
+              }
+            </button>
+          </div>
         </div>
       </div>
 
@@ -173,55 +320,115 @@ export function Header() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="lg:hidden bg-[#001845] border-t border-white/10"
+            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            className={`lg:hidden overflow-hidden ${mobileBg}`}
           >
-            <div className="container mx-auto px-4 py-4 space-y-2">
+            <div className="container mx-auto px-5 py-5 space-y-1">
               {navItems.map((item) => (
                 <div key={item.label}>
                   <button
-                    onClick={() => setOpenSubmenu(openSubmenu === item.label ? null : item.label)}
-                    className="flex items-center justify-between w-full px-4 py-3 text-sm font-medium text-white rounded-lg hover:bg-white/10"
+                    onClick={() => {
+                      if (item.href && !item.submenu) navigate(item.href);
+                      setOpenSubmenu(openSubmenu === item.label ? null : item.label);
+                    }}
+                    className={`flex items-center justify-between w-full px-4 py-3.5 text-sm font-medium rounded-xl transition-colors ${mobileItemText} ${navHoverBg}`}
                   >
-                    <span className="flex items-center gap-2">
-                      <item.icon className="w-4 h-4" />
-                      {item.label}
-                    </span>
-                    {item.submenu && (
-                      <ChevronDown className={`w-4 h-4 transition-transform ${openSubmenu === item.label ? "rotate-180" : ""}`} />
-                    )}
-                  </button>
-                  {item.submenu && openSubmenu === item.label && (
-                    <div className="ml-6 mt-1 space-y-1 bg-black/20 rounded-lg p-2">
-                      {item.submenu.map((subitem) => (
-                        <a
-                          key={subitem.label}
-                          href={subitem.href}
-                          className="block px-4 py-2 text-sm text-gray-300 hover:text-white rounded-md hover:bg-white/10"
-                        >
-                          {subitem.label}
-                        </a>
-                      ))}
+                    <span>{item.label}</span>
+                    <div className="flex items-center gap-2">
+                      {item.comingSoon && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-brand-sunset/12 text-brand-sunset font-semibold">
+                          Pronto
+                        </span>
+                      )}
+                      {item.submenu && (
+                        <ChevronDown className={`w-4 h-4 opacity-50 transition-transform duration-200 ${openSubmenu === item.label ? "rotate-180" : ""}`} />
+                      )}
                     </div>
-                  )}
+                  </button>
+
+                  <AnimatePresence initial={false}>
+                    {item.submenu && openSubmenu === item.label && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                        className="overflow-hidden"
+                      >
+                        <div className={`mx-2 mb-1 rounded-xl p-2 ${mobileSubBg}`}>
+                          {item.submenu.map((subitem) => (
+                            <a
+                              key={subitem.label}
+                              href={subitem.href}
+                              onClick={() => setMobileMenuOpen(false)}
+                              className={`flex items-center justify-between px-4 py-3 text-sm rounded-lg transition-colors ${mobileSubtext} ${navHoverBg}`}
+                            >
+                              <span>{subitem.label}</span>
+                              {subitem.comingSoon && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-brand-sunset/12 text-brand-sunset font-semibold">
+                                  Pronto
+                                </span>
+                              )}
+                            </a>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               ))}
 
-              {/* Mobile auth buttons */}
-              <div className="pt-4 border-t border-white/10 flex flex-col gap-2">
-                <a
-                  href="#login"
-                  className="flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white border border-white/20 rounded-lg hover:bg-white/10 transition-colors"
+              {/* Bottom actions */}
+              <div className={`pt-4 mt-3 border-t flex flex-col gap-2.5 ${mobileDivider}`}>
+                <button
+                  onClick={toggleTheme}
+                  className={`flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium rounded-xl border transition-colors ${mobileItemText} ${mobileBtnBorder} ${navHoverBg}`}
                 >
-                  <LogIn className="w-4 h-4" />
-                  Iniciar sesión
-                </a>
-                <a
-                  href="#register"
-                  className="flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-[#001233] bg-[#FFC300] hover:bg-[#FFD60A] rounded-lg transition-colors"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  Registrarse
-                </a>
+                  {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                  {isDark ? "Modo claro" : "Modo oscuro"}
+                </button>
+
+                {authUser ? (
+                  /* ── Mobile authenticated ── */
+                  <>
+                    <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${mobileBtnBorder}`}>
+                      <div className="w-8 h-8 rounded-full bg-brand-electric flex items-center justify-center shrink-0">
+                        <span className="text-xs font-bold text-white leading-none">
+                          {getInitials(authUser.nombre)}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className={`text-sm font-semibold truncate ${mobileItemText}`}>{authUser.nombre}</p>
+                        <p className={`text-xs truncate ${mobileSubtext}`}>{authUser.email}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleLogout}
+                      className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium rounded-xl border border-red-500/30 text-red-500 hover:bg-red-500/8 transition-colors"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Cerrar sesión
+                    </button>
+                  </>
+                ) : (
+                  /* ── Mobile guest ── */
+                  <>
+                    <button
+                      onClick={() => { setMobileMenuOpen(false); navigate('/login'); }}
+                      className={`flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium rounded-xl border transition-colors ${mobileItemText} ${mobileBtnBorder} ${navHoverBg}`}
+                    >
+                      <LogIn className="w-4 h-4" />
+                      Iniciar sesión
+                    </button>
+                    <button
+                      onClick={() => { setMobileMenuOpen(false); navigate('/registro'); }}
+                      className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold text-brand-dark bg-brand-sunset hover:bg-brand-sunset/90 rounded-xl transition-colors"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      Registrarse
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </motion.div>

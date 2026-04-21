@@ -57,42 +57,49 @@ export function ComparisonFloatingBar({
             boxShadow: "0 -4px 24px rgba(0,0,0,0.12)",
           }}
         >
-          <div className="container mx-auto px-4 py-3 flex items-center gap-3">
+          <div className="container mx-auto px-4 py-3.5 flex items-center gap-2 sm:gap-3">
             {/* Ícono */}
-            <Scale className="w-4 h-4 text-[#0466C8] shrink-0" />
+            <Scale className="w-4 h-4 text-primary shrink-0" />
 
             {/* Chips de productos seleccionados */}
             <div className="flex items-center gap-2 flex-1 overflow-x-auto">
-              {selectedProducts.map((p) => {
-                const logo = getLogo(p.entidad);
-                return (
-                  <div
-                    key={p.id}
-                    className="flex items-center gap-1.5 px-2 py-1 rounded-full border border-[#0466C8]/30 bg-[#0466C8]/5 shrink-0"
-                  >
-                    {logo ? (
-                      <img src={logo} alt="" className="w-4 h-4 object-contain rounded-sm" />
-                    ) : (
-                      <span className="w-4 h-4 rounded-sm bg-muted flex items-center justify-center text-[9px] font-bold text-foreground">
-                        {p.entidad.nombre.charAt(0)}
-                      </span>
-                    )}
-                    <span className="text-[11px] font-medium text-foreground max-w-[80px] truncate">
-                      {p.entidad.nombre}
-                    </span>
-                    <button
-                      onClick={() => onRemove(p.id)}
-                      className="ml-0.5 text-muted-foreground hover:text-foreground transition-colors"
+              <AnimatePresence mode="popLayout">
+                {selectedProducts.map((p) => {
+                  const logo = getLogo(p.entidad);
+                  return (
+                    <motion.div
+                      key={p.id}
+                      layout
+                      initial={{ scale: 0.7, opacity: 0, x: -12 }}
+                      animate={{ scale: 1, opacity: 1, x: 0 }}
+                      exit={{ scale: 0.7, opacity: 0, x: 12 }}
+                      transition={{ type: "spring", stiffness: 420, damping: 26 }}
+                      className="flex items-center gap-1.5 px-2 py-1 rounded-full border border-primary/30 bg-primary/5 shrink-0"
                     >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                );
-              })}
+                      {logo ? (
+                        <img src={logo} alt="" className="w-4 h-4 object-contain rounded-sm" />
+                      ) : (
+                        <span className="w-4 h-4 rounded-sm bg-muted flex items-center justify-center text-[9px] font-bold text-foreground">
+                          {p.entidad.nombre.charAt(0)}
+                        </span>
+                      )}
+                      <span className="text-[11px] font-medium text-foreground max-w-[80px] truncate">
+                        {p.entidad.nombre}
+                      </span>
+                      <button
+                        onClick={() => onRemove(p.id)}
+                        className="ml-0.5 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
 
-              {/* Slot vacío cuando hay menos de 4 */}
+              {/* Slot vacío cuando hay menos de 4 — solo en pantallas medianas+ */}
               {selectedProducts.length < 4 && (
-                <div className="flex items-center gap-1.5 px-2 py-1 rounded-full border border-dashed border-border shrink-0">
+                <div className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-full border border-dashed border-border shrink-0">
                   <span className="text-[11px] text-muted-foreground">
                     + Agrega otro
                   </span>
@@ -111,7 +118,7 @@ export function ComparisonFloatingBar({
               </button>
               <button
                 onClick={onOpenDialog}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0466C8] hover:bg-[#0353A4] text-white text-sm font-semibold transition-colors"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-white text-sm font-semibold transition-colors"
               >
                 Comparar {selectedProducts.length}
                 <ChevronRight className="w-4 h-4" />

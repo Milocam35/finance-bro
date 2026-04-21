@@ -1,32 +1,32 @@
 import { motion } from "framer-motion";
-import { CreditCard, Shield, TrendingUp, Building, ArrowRight, Lock } from "lucide-react";
+import { ArrowRight, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 
 const categories = [
   {
-    icon: Building,
+    icon: "/brand/icons/svg/esquema.svg",
     title: "Créditos",
     description:
       "Hipotecarios, personales, automotriz y educativos. Compara tasas y encuentra el mejor para ti.",
     items: ["Hipotecarios", "Personales", "Automotriz", "Educativos"],
     available: true,
-    href: "/creditos-hipotecarios",
-    accent: "#0466C8",
+    href: "/creditos",
+    accent: "#303AE4",
     image: "/images/index/creditos.webp",
     stat: "50+",
     statLabel: "productos",
   },
   {
-    icon: Shield,
+    icon: "/brand/icons/svg/nube.svg",
     title: "Seguros",
     description: "Protege lo que más importa. Coberturas y precios de las principales aseguradoras.",
     items: ["Vida", "Auto", "Hogar", "Gastos Médicos"],
     available: false,
-    accent: "#0353A4",
+    accent: "#052659",
   },
   {
-    icon: CreditCard,
+    icon: "/brand/icons/svg/dinero-2.svg",
     title: "Tarjetas",
     description: "La tarjeta perfecta según tus hábitos. Sin anualidad, cashback, millas y más.",
     items: ["Sin anualidad", "Cashback", "Millas"],
@@ -34,7 +34,7 @@ const categories = [
     accent: "#7c3aed",
   },
   {
-    icon: TrendingUp,
+    icon: "/brand/icons/svg/flecha.svg",
     title: "Inversiones",
     description: "Haz crecer tu dinero. CDT, fondos de inversión y más opciones.",
     items: ["CDT", "Fondos", "Bonos"],
@@ -68,12 +68,18 @@ export function CategoriesPreview() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
-          className="mb-14"
+          className="mb-14 text-center"
         >
-          <h2 className="text-4xl md:text-5xl font-black text-foreground tracking-tight mb-3">
+          <p className="text-[10px] font-semibold text-muted-foreground tracking-[0.18em] uppercase mb-5 text-center">
+            01 — Explora
+          </p>
+          <h2
+            className="font-black text-foreground tracking-tight leading-[0.95] mb-5 text-center"
+            style={{ fontSize: "clamp(2rem, 4vw, 3.5rem)" }}
+          >
             Todo en un lugar
           </h2>
-          <p className="text-muted-foreground text-lg max-w-md">
+          <p className="text-muted-foreground text-lg max-w-sm mx-auto text-center">
             Empieza a comparar créditos hoy. Seguros, tarjetas e inversiones pronto.
           </p>
         </motion.div>
@@ -84,13 +90,14 @@ export function CategoriesPreview() {
           initial="hidden"
           whileInView="show"
           viewport={{ once: true }}
-          className="grid grid-cols-1 lg:grid-cols-4 gap-4"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
         >
           {/* ── Featured: Créditos (2 cols) ── */}
           <motion.div
             variants={cardVariants}
+            whileHover={{ y: -4, transition: { duration: 0.2, ease: [0.25, 1, 0.5, 1] } }}
             onClick={() => navigate(featured.href!)}
-            className="lg:col-span-2 group relative rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/40 transition-all duration-300 hover:shadow-xl hover:shadow-primary/6 cursor-pointer"
+            className="sm:col-span-2 lg:col-span-2 group relative rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/40 transition-all duration-300 hover:shadow-xl hover:shadow-primary/6 dark:hover:shadow-black/20 cursor-pointer"
           >
             {/* Image */}
             <div className="relative h-52 overflow-hidden bg-muted">
@@ -103,7 +110,7 @@ export function CategoriesPreview() {
               )}
               <div className="absolute inset-0 bg-gradient-to-t from-card/95 via-card/25 to-transparent" />
               <div className="absolute top-4 left-4">
-                <span className="px-2.5 py-1 rounded-full bg-[#0466C8] text-white text-xs font-bold shadow-lg">
+                <span className="px-2.5 py-1 rounded-full bg-primary text-white text-xs font-bold shadow-lg shadow-primary/30 dark:shadow-none">
                   Disponible ahora
                 </span>
               </div>
@@ -135,7 +142,7 @@ export function CategoriesPreview() {
                 ))}
               </div>
 
-              <Button className="bg-primary hover:bg-primary/90 text-white rounded-xl font-semibold group/btn shadow-md shadow-primary/20 transition-all duration-200">
+              <Button className="bg-primary hover:bg-primary/90 text-white rounded-xl font-semibold group/btn shadow-md shadow-primary/20 dark:shadow-none transition-all duration-200">
                 Explorar créditos
                 <ArrowRight className="w-4 h-4 ml-2 group-hover/btn:translate-x-1 transition-transform" />
               </Button>
@@ -151,7 +158,7 @@ export function CategoriesPreview() {
             >
               {/* Coming soon badge */}
               <div className="absolute top-4 right-4">
-                <span className="flex items-center gap-1 text-[10px] font-black px-2 py-1 rounded-full bg-[#FFD60A] text-[#001233]">
+                <span className="flex items-center gap-1 text-[10px] font-black px-2 py-1 rounded-full bg-brand-sunset text-brand-dark">
                   <Lock className="w-2.5 h-2.5" />
                   Pronto
                 </span>
@@ -162,7 +169,7 @@ export function CategoriesPreview() {
                 className="w-12 h-12 rounded-xl flex items-center justify-center mb-5"
                 style={{ backgroundColor: `${cat.accent}12` }}
               >
-                <cat.icon className="w-6 h-6" style={{ color: `${cat.accent}70` }} />
+                <img src={cat.icon} alt="" className="w-7 h-7 object-contain opacity-50" />
               </div>
 
               <h3 className="text-xl font-black text-foreground/60 mb-2">{cat.title}</h3>

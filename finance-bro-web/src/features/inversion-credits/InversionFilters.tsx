@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
-import { DollarSign, Calendar, ArrowUpDown, Info, RotateCcw, Banknote } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { DollarSign, Calendar, ArrowUpDown, Info, RotateCcw, Banknote, ChevronDown } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
 import {
@@ -43,6 +43,7 @@ export function InversionFilters({ onFilterChange }: InversionFiltersProps) {
   const [filters, setFilters] = useState<InversionFilterState>(DEFAULT_FILTERS);
   const [amountInput, setAmountInput] = useState<string>("10000000");
   const [termInput, setTermInput] = useState<string>("1");
+  const [mobileExpanded, setMobileExpanded] = useState(false);
 
   const handleChange = (key: keyof InversionFilterState, value: number | string) => {
     const newFilters = { ...filters, [key]: value };
@@ -116,6 +117,110 @@ export function InversionFilters({ onFilterChange }: InversionFiltersProps) {
   const formatInputCurrency = (value: string) =>
     new Intl.NumberFormat("es-CO", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(parseInt(value) || 0);
 
+  const formatAmountShort = (value: number) => {
+    if (value >= 1_000_000) return `$${Math.round(value / 1_000_000)}M`;
+    return formatCurrency(value);
+  };
+
+  const filterBody = (
+    <div className="px-5 pt-4 pb-5 lg:px-8 lg:pt-0 lg:pb-8">
+      {/* Sort */}
+      <div className="mb-6 lg:mb-8">
+        <div className="space-y-3 max-w-xs">
+          <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <ArrowUpDown className="w-4 h-4 text-secondary" />
+            Ordenar por
+          </label>
+          <Select value={filters.sortBy} onValueChange={(value) => handleChange("sortBy", value)}>
+            <SelectTrigger className="h-[42px] rounded-xl border-border bg-muted hover:bg-border transition-colors text-sm font-medium text-foreground focus:ring-ring/20 focus:border-ring/40">
+              <SelectValue placeholder="Ordenar por" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="rate">Menor tasa</SelectItem>
+              <SelectItem value="payment">Menor mensualidad</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div className="relative mb-6 lg:mb-8">
+        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border" /></div>
+        <div className="relative flex justify-center">
+          <span className="bg-card px-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground/60">Simulación</span>
+        </div>
+      </div>
+
+      {/* Sliders */}
+      <div className="grid gap-6 lg:grid-cols-2 lg:gap-8">
+        {/* Amount */}
+        <div className="space-y-4">
+          <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <div className="w-7 h-7 rounded-lg bg-secondary/10 flex items-center justify-center">
+              <DollarSign className="w-4 h-4 text-secondary" />
+            </div>
+            Monto del crédito
+            <Tooltip>
+              <TooltipTrigger asChild><div className="cursor-help"><Info className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-secondary transition-colors" /></div></TooltipTrigger>
+              <TooltipContent className="max-w-xs"><p className="text-sm">Valor aproximado del crédito de libre inversión que necesitas.</p></TooltipContent>
+            </Tooltip>
+          </label>
+          <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-foreground/[0.02] to-secondary/[0.03] border border-secondary/10">
+            <span className="text-secondary/60 text-sm font-medium">$</span>
+            <Input
+              type="text"
+              value={formatInputCurrency(amountInput)}
+              onChange={handleAmountInputChange}
+              onBlur={handleAmountInputBlur}
+              className="border-0 bg-transparent p-0 h-auto text-lg font-bold text-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
+              placeholder="Ingrese el valor"
+            />
+            <span className="text-xs font-medium text-secondary bg-secondary/10 px-2 py-1 rounded-md whitespace-nowrap">COP</span>
+          </div>
+          <div className="px-1">
+            <Slider value={[filters.amount]} onValueChange={([v]) => handleSliderChange(v)} min={MIN_AMOUNT} max={MAX_AMOUNT} step={1000000} className="py-2" />
+            <div className="flex justify-between mt-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">$1M</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">$100M</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Term */}
+        <div className="space-y-4">
+          <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <div className="w-7 h-7 rounded-lg bg-secondary/10 flex items-center justify-center">
+              <Calendar className="w-4 h-4 text-secondary" />
+            </div>
+            Plazo del crédito
+            <Tooltip>
+              <TooltipTrigger asChild><div className="cursor-help"><Info className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-secondary transition-colors" /></div></TooltipTrigger>
+              <TooltipContent className="max-w-xs"><p className="text-sm">Tiempo en años en que planeas pagar el crédito.</p></TooltipContent>
+            </Tooltip>
+          </label>
+          <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-foreground/[0.02] to-secondary/[0.03] border border-secondary/10">
+            <Input
+              type="text"
+              value={termInput}
+              onChange={handleTermInputChange}
+              onBlur={handleTermInputBlur}
+              className="border-0 bg-transparent p-0 h-auto text-lg font-bold text-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
+              placeholder="Plazo en años"
+            />
+            <span className="text-xs font-medium text-secondary bg-secondary/10 px-2 py-1 rounded-md whitespace-nowrap">años</span>
+          </div>
+          <div className="px-1">
+            <Slider value={[filters.term]} onValueChange={([v]) => handleTermSliderChange(v)} min={MIN_TERM} max={MAX_TERM} step={1} className="py-2" />
+            <div className="flex justify-between mt-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">1 año</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">7 años</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -130,9 +235,9 @@ export function InversionFilters({ onFilterChange }: InversionFiltersProps) {
         backgroundSize: '24px 24px',
       }} />
 
-      <div className="relative p-6 lg:p-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+      {/* Always-visible header */}
+      <div className="relative px-5 pt-5 lg:px-8 lg:pt-8 pb-4 lg:pb-0">
+        <div className="flex items-center justify-between lg:mb-8">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-foreground flex items-center justify-center shadow-lg shadow-foreground/20">
               <Banknote className="w-5 h-5" style={{ color: "hsl(var(--accent))" }} />
@@ -155,98 +260,40 @@ export function InversionFilters({ onFilterChange }: InversionFiltersProps) {
           )}
         </div>
 
-        {/* Sort */}
-        <div className="mb-8 max-w-xs">
-          <label className="flex items-center gap-2 text-sm font-medium text-foreground mb-3">
-            <ArrowUpDown className="w-4 h-4 text-secondary" />
-            Ordenar por
-          </label>
-          <Select value={filters.sortBy} onValueChange={(value) => handleChange("sortBy", value)}>
-            <SelectTrigger className="h-[42px] rounded-xl border-border bg-muted hover:bg-border transition-colors text-sm font-medium text-foreground focus:ring-ring/20 focus:border-ring/40">
-              <SelectValue placeholder="Ordenar por" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="rate">Menor tasa</SelectItem>
-              <SelectItem value="payment">Menor mensualidad</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Divider */}
-        <div className="relative mb-8">
-          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border" /></div>
-          <div className="relative flex justify-center">
-            <span className="bg-card px-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground/60">Simulación</span>
+        {/* Mobile toggle row */}
+        <button
+          className="lg:hidden w-full flex items-center justify-between mt-3 pt-3 border-t border-border/50"
+          onClick={() => setMobileExpanded(v => !v)}
+        >
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span className="font-semibold text-foreground">{formatAmountShort(filters.amount)}</span>
+            <span>·</span>
+            <span>{filters.term} {filters.term === 1 ? "año" : "años"}</span>
           </div>
-        </div>
+          <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-300 ${mobileExpanded ? "rotate-180" : ""}`} />
+        </button>
+      </div>
 
-        {/* Sliders */}
-        <div className="grid gap-8 lg:grid-cols-2">
-          {/* Amount */}
-          <div className="space-y-4">
-            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <div className="w-7 h-7 rounded-lg bg-secondary/10 flex items-center justify-center">
-                <DollarSign className="w-4 h-4 text-secondary" />
-              </div>
-              Monto del crédito
-              <Tooltip>
-                <TooltipTrigger asChild><div className="cursor-help"><Info className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-secondary transition-colors" /></div></TooltipTrigger>
-                <TooltipContent className="max-w-xs"><p className="text-sm">Valor aproximado del crédito de libre inversión que necesitas.</p></TooltipContent>
-              </Tooltip>
-            </label>
-            <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-foreground/[0.02] to-secondary/[0.03] border border-secondary/10">
-              <span className="text-secondary/60 text-sm font-medium">$</span>
-              <Input
-                type="text"
-                value={formatInputCurrency(amountInput)}
-                onChange={handleAmountInputChange}
-                onBlur={handleAmountInputBlur}
-                className="border-0 bg-transparent p-0 h-auto text-lg font-bold text-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
-                placeholder="Ingrese el valor"
-              />
-              <span className="text-xs font-medium text-secondary bg-secondary/10 px-2 py-1 rounded-md whitespace-nowrap">COP</span>
-            </div>
-            <div className="px-1">
-              <Slider value={[filters.amount]} onValueChange={([v]) => handleSliderChange(v)} min={MIN_AMOUNT} max={MAX_AMOUNT} step={1000000} className="py-2" />
-              <div className="flex justify-between mt-2">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">$1M</span>
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">$100M</span>
-              </div>
-            </div>
-          </div>
+      {/* Mobile: animated collapse */}
+      <div className="lg:hidden">
+        <AnimatePresence initial={false}>
+          {mobileExpanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              style={{ overflow: "hidden" }}
+              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            >
+              {filterBody}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
-          {/* Term */}
-          <div className="space-y-4">
-            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <div className="w-7 h-7 rounded-lg bg-secondary/10 flex items-center justify-center">
-                <Calendar className="w-4 h-4 text-secondary" />
-              </div>
-              Plazo del crédito
-              <Tooltip>
-                <TooltipTrigger asChild><div className="cursor-help"><Info className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-secondary transition-colors" /></div></TooltipTrigger>
-                <TooltipContent className="max-w-xs"><p className="text-sm">Tiempo en años en que planeas pagar el crédito.</p></TooltipContent>
-              </Tooltip>
-            </label>
-            <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-foreground/[0.02] to-secondary/[0.03] border border-secondary/10">
-              <Input
-                type="text"
-                value={termInput}
-                onChange={handleTermInputChange}
-                onBlur={handleTermInputBlur}
-                className="border-0 bg-transparent p-0 h-auto text-lg font-bold text-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
-                placeholder="Plazo en años"
-              />
-              <span className="text-xs font-medium text-secondary bg-secondary/10 px-2 py-1 rounded-md whitespace-nowrap">años</span>
-            </div>
-            <div className="px-1">
-              <Slider value={[filters.term]} onValueChange={([v]) => handleTermSliderChange(v)} min={MIN_TERM} max={MAX_TERM} step={1} className="py-2" />
-              <div className="flex justify-between mt-2">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">1 año</span>
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">7 años</span>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* Desktop: always visible */}
+      <div className="hidden lg:block">
+        {filterBody}
       </div>
     </motion.div>
   );

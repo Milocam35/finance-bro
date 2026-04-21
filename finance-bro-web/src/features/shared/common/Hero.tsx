@@ -1,288 +1,280 @@
-import { motion } from "framer-motion";
-import { Search, TrendingDown, Shield, Clock } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
+import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
+import { useTheme } from "@/components/theme-provider";
+
+const EASE_OUT_EXPO = [0.16, 1, 0.3, 1] as const;
+const EASE_OUT_QUINT = [0.22, 1, 0.36, 1] as const;
 
 const stats = [
-  { value: "25+", label: "Bancos", icon: Shield },
-  { value: "50K+", label: "Usuarios", icon: Clock },
-  { value: "$5.000M+", label: "Ahorrados", icon: TrendingDown },
+  { value: "25+", label: "Bancos" },
+  { value: "50K+", label: "Usuarios" },
+  { value: "$5.000M+", label: "Ahorrados" },
 ];
 
-// Partículas flotantes estéticas
-const particles = [
-  { size: 4, x: "10%", y: "20%", duration: 8, delay: 0 },
-  { size: 6, x: "85%", y: "15%", duration: 10, delay: 1 },
-  { size: 3, x: "70%", y: "60%", duration: 7, delay: 2 },
-  { size: 5, x: "20%", y: "70%", duration: 9, delay: 0.5 },
-  { size: 4, x: "90%", y: "80%", duration: 11, delay: 1.5 },
-  { size: 3, x: "5%", y: "50%", duration: 8, delay: 3 },
-  { size: 5, x: "50%", y: "10%", duration: 10, delay: 2.5 },
-  { size: 4, x: "35%", y: "85%", duration: 9, delay: 1 },
+const banks = [
+  { name: "Bancolombia", logo: "/images/banks/bancolombia.png" },
+  { name: "Davivienda", logo: "/images/banks/davivienda.png" },
+  { name: "BBVA", logo: "/images/banks/bbva.png" },
+  { name: "Scotiabank", logo: "/images/banks/davibank.jpg" },
+  { name: "Itaú", logo: "/images/banks/itau.png" },
+  { name: "Lulo Bank", logo: "/images/banks/lulobank.png" },
+  { name: "Nu", logo: "/images/banks/nu.svg" },
+  { name: "Credifamilia", logo: "/images/banks/credifamilia.png" },
+  { name: "KOA", logo: "/images/banks/koa.png" },
+  { name: "IRIS", logo: "/images/banks/iris.png" },
 ];
+
+function BankGrid({ isDark }: { isDark: boolean }) {
+  const reduced = useReducedMotion();
+
+  return (
+    <div className="grid grid-cols-5 gap-1.5 sm:gap-3">
+      {banks.map((bank, i) => (
+        <motion.div
+          key={bank.name}
+          animate={reduced ? {} : { y: [0, -6, 0] }}
+          transition={{
+            duration: 2.8 + i * 0.22,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: i * 0.18,
+          }}
+          className="flex items-center justify-center h-[48px] sm:h-[60px] rounded-xl overflow-hidden"
+          style={{
+            background: isDark ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.9)",
+            border: isDark ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(0,0,0,0.07)",
+            boxShadow: isDark
+              ? "0 6px 20px rgba(0,0,0,0.4)"
+              : "0 3px 12px rgba(48,58,228,0.08)",
+          }}
+        >
+          <img
+            src={bank.logo}
+            alt={bank.name}
+            className={`h-5 sm:h-6 w-auto max-w-[80%] object-contain ${
+              isDark ? "brightness-0 invert opacity-55" : "opacity-60"
+            }`}
+            loading="eager"
+            onError={(e) => {
+              const el = e.target as HTMLImageElement;
+              el.style.display = "none";
+              const p = el.parentElement;
+              if (p) {
+                const s = document.createElement("span");
+                s.className = "text-[9px] font-medium text-center px-1 leading-tight";
+                s.style.color = isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.45)";
+                s.textContent = bank.name;
+                p.appendChild(s);
+              }
+            }}
+          />
+        </motion.div>
+      ))}
+    </div>
+  );
+}
 
 export function Hero() {
   const navigate = useNavigate();
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+  const reduced = useReducedMotion();
+
+  /* Shared entrance config */
+  const fadeUp = (delay: number, duration = 0.55) => ({
+    initial: { opacity: 0, y: reduced ? 0 : 18 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration, delay, ease: EASE_OUT_QUINT },
+  });
 
   return (
-    <section className="relative min-h-[100vh] flex items-center overflow-hidden bg-[#001233]">
-      {/* Fondo sólido base */}
-      <div className="absolute inset-0 bg-[#001233]" />
+    <section className="relative overflow-hidden bg-muted/30 dark:bg-[#07111E]">
 
-      {/* Olas decorativas en el fondo */}
-      <div className="absolute inset-0 overflow-hidden">
-        {/* Ola 1 - más atrás */}
-        <svg
-          className="absolute bottom-0 left-0 w-full"
-          viewBox="0 0 1440 400"
-          preserveAspectRatio="none"
-          style={{ height: "60%" }}
-        >
-          <path
-            d="M0,320 C180,280 360,200 540,200 C720,200 900,280 1080,300 C1260,320 1380,280 1440,260 L1440,400 L0,400 Z"
-            fill="#002855"
-            fillOpacity="0.4"
-          />
-        </svg>
-
-        {/* Ola 2 - intermedia */}
-        <svg
-          className="absolute bottom-0 left-0 w-full"
-          viewBox="0 0 1440 400"
-          preserveAspectRatio="none"
-          style={{ height: "50%" }}
-        >
-          <path
-            d="M0,350 C240,300 480,220 720,240 C960,260 1200,340 1440,300 L1440,400 L0,400 Z"
-            fill="#0353A4"
-            fillOpacity="0.3"
-          />
-        </svg>
-
-        {/* Ola 3 - más al frente */}
-        <svg
-          className="absolute bottom-0 left-0 w-full"
-          viewBox="0 0 1440 400"
-          preserveAspectRatio="none"
-          style={{ height: "40%" }}
-        >
-          <path
-            d="M0,380 C360,340 720,280 1080,320 C1260,340 1380,360 1440,350 L1440,400 L0,400 Z"
-            fill="#0466C8"
-            fillOpacity="0.25"
-          />
-        </svg>
+      {/* ── Dark mode: colored mesh blobs ── */}
+      <div className="hidden dark:block absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute -top-[15%] left-[15%] w-[75%] h-[75%] rounded-full"
+          style={{ background: "radial-gradient(circle, #303AE4 0%, transparent 65%)", filter: "blur(72px)", opacity: 0.68 }} />
+        <div className="absolute top-[25%] -right-[15%] w-[55%] h-[60%] rounded-full"
+          style={{ background: "radial-gradient(circle, #303AE4 0%, transparent 70%)", filter: "blur(60px)", opacity: 0.45 }} />
+        <div className="absolute top-[5%] left-[30%] w-[45%] h-[45%] rounded-full"
+          style={{ background: "radial-gradient(circle, #C2E8FF 0%, transparent 65%)", filter: "blur(64px)", opacity: 0.28 }} />
+        <div className="absolute -bottom-[10%] -left-[5%] w-[45%] h-[55%] rounded-full"
+          style={{ background: "radial-gradient(circle, #FBB347 0%, transparent 65%)", filter: "blur(80px)", opacity: 0.42 }} />
+        <div className="absolute -bottom-[20%] right-[5%] w-[55%] h-[55%] rounded-full"
+          style={{ background: "radial-gradient(circle, #052659 0%, transparent 65%)", filter: "blur(60px)", opacity: 0.7 }} />
+        <div className="absolute inset-0"
+          style={{ background: "radial-gradient(ellipse 80% 80% at 50% 50%, transparent 40%, #07111E 100%)", opacity: 0.5 }} />
       </div>
 
-      {/* Partículas flotantes */}
-      {particles.map((particle, index) => (
-        <motion.div
-          key={index}
-          className="absolute rounded-full bg-white/20"
-          style={{
-            width: particle.size,
-            height: particle.size,
-            left: particle.x,
-            top: particle.y,
-          }}
-          animate={{
-            y: [0, -30, 0],
-            opacity: [0.2, 0.5, 0.2],
-          }}
-          transition={{
-            duration: particle.duration,
-            repeat: Infinity,
-            ease: "easeInOut",
-            delay: particle.delay,
-          }}
-        />
-      ))}
+      {/* ── Light mode: neutral bubbles + grid ── */}
+      <div className="dark:hidden absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute -top-[20%] left-[10%] w-[65%] h-[70%] rounded-full"
+          style={{ background: "radial-gradient(circle, rgba(48,58,228,0.05) 0%, transparent 65%)", filter: "blur(80px)" }} />
+        <div className="absolute -bottom-[10%] right-[5%] w-[50%] h-[60%] rounded-full"
+          style={{ background: "radial-gradient(circle, rgba(251,179,71,0.05) 0%, transparent 65%)", filter: "blur(90px)" }} />
+        <div className="absolute inset-0 opacity-[0.35]">
+          <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <pattern id="hero-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" strokeWidth="0.5" className="text-border" />
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#hero-grid)" />
+          </svg>
+        </div>
+      </div>
 
-      {/* Elementos geométricos flotantes */}
+      {/* ── Floating geometric accents ── */}
       <motion.div
-        animate={{ y: [0, -15, 0], rotate: [0, 5, 0] }}
-        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-        className="absolute top-1/4 right-[15%] w-16 h-16 rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm hidden lg:block"
+        animate={reduced ? {} : { y: [0, -14, 0], rotate: [0, 5, 0], opacity: [0.6, 1, 0.6] }}
+        transition={{ duration: 6.5, repeat: Infinity, ease: "easeInOut" }}
+        className="absolute top-1/4 right-[14%] w-14 h-14 rounded-2xl hidden lg:block"
+        style={{
+          border: isDark ? "1px solid rgba(255,255,255,0.1)" : "1px solid hsl(var(--border))",
+          backgroundColor: isDark ? "rgba(255,255,255,0.03)" : "rgba(48,58,228,0.04)",
+        }}
       />
       <motion.div
-        animate={{ y: [0, 20, 0], rotate: [0, -5, 0] }}
-        transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-        className="absolute bottom-1/3 left-[8%] w-12 h-12 rounded-full border border-[#0466C8]/30 bg-[#0466C8]/10 hidden lg:block"
+        animate={reduced ? {} : { y: [0, 18, 0], rotate: [0, -5, 0], opacity: [0.5, 0.9, 0.5] }}
+        transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut", delay: 1.2 }}
+        className="absolute bottom-1/3 left-[7%] w-10 h-10 rounded-full hidden lg:block border border-brand-sunset/20 bg-brand-sunset/[0.05]"
       />
       <motion.div
-        animate={{ y: [0, -10, 0] }}
-        transition={{ duration: 7, repeat: Infinity, ease: "easeInOut", delay: 2 }}
-        className="absolute top-1/3 left-[12%] w-8 h-8 rounded-lg border border-[#FFD60A]/20 bg-[#FFD60A]/5 hidden lg:block"
+        animate={reduced ? {} : { y: [0, -10, 0], opacity: [0.4, 0.8, 0.4] }}
+        transition={{ duration: 7, repeat: Infinity, ease: "easeInOut", delay: 2.5 }}
+        className="absolute top-[38%] left-[11%] w-7 h-7 rounded-lg hidden lg:block"
+        style={{
+          border: isDark ? "1px solid rgba(255,255,255,0.1)" : "1px solid hsl(var(--border))",
+          backgroundColor: isDark ? "rgba(255,255,255,0.02)" : "rgba(48,58,228,0.03)",
+        }}
       />
 
-      <div className="container mx-auto px-4 relative z-10 pt-32 pb-24">
-        <div className="max-w-4xl mx-auto text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/20 text-white text-sm font-medium mb-6">
-              <span className="w-2 h-2 rounded-full bg-[#FFD60A] animate-pulse" />
-              Compara y ahorra en minutos
+      <div className="container mx-auto px-4 relative z-10 pt-20 lg:pt-32 pb-0">
+        <div className="max-w-5xl mx-auto text-center">
+
+          {/* Badge */}
+          <motion.div {...fadeUp(0, 0.45)}>
+            <span
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold mb-6 backdrop-blur-sm border border-brand-sunset/40"
+              style={{
+                backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(251,179,71,0.08)",
+                color: isDark ? "rgba(255,255,255,0.9)" : "hsl(var(--foreground))",
+              }}
+            >
+              <span className="w-2 h-2 rounded-full bg-brand-sunset animate-pulse" />
+              Gratis · Sin registro
             </span>
           </motion.div>
 
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            className="text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-tight mb-6"
-          >
-            Encuentra el producto financiero
-            <br />
-            <span className="text-[#FFD60A]">ideal para ti</span>
-          </motion.h1>
-
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-lg md:text-xl text-white/80 mb-8 max-w-3xl mx-auto"
-          >
-            Compara tasas, plazos y requisitos de todas las entidades financieras en un solo lugar.
-            Toma decisiones financieras inteligentes con información transparente.
-          </motion.p>
-
+          {/* Imagotipo — hero moment, enters with scale + bigger y-offset */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-            className="flex flex-col sm:flex-row gap-4 justify-center mb-12"
+            initial={{ opacity: 0, y: reduced ? 0 : 44, scale: reduced ? 1 : 0.88 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.85, delay: 0.12, ease: EASE_OUT_EXPO }}
+            className="mb-6 flex justify-center"
           >
-            <Button
-              size="lg"
-              onClick={() => navigate('/creditos-hipotecarios')}
-              className="bg-white/10 backdrop-blur-md border-2 border-white/20 hover:bg-white/20 hover:border-white/30 text-white font-semibold px-6 py-3 h-auto rounded-full transition-all duration-300"
-            >
-              <Search className="w-5 h-5 mr-2" />
-              Comparar Créditos Hipotecarios
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              onClick={() => {
-                const featuresSection = document.getElementById('features');
-                featuresSection?.scrollIntoView({ behavior: 'smooth' });
-              }}
-              className="bg-white/10 backdrop-blur-md border-2 border-white/20 hover:bg-white/20 hover:border-white/30 text-white font-semibold px-6 py-3 h-auto rounded-full transition-all duration-300"
-            >
-              ¿Cómo funciona?
-            </Button>
+            <motion.img
+              src={isDark ? "/brand/logos/png/imagotipo-negativo.png" : "/brand/logos/png/imagotipo-color.png"}
+              alt="FinanceBro"
+              animate={reduced ? {} : { y: [0, -10, 0], rotate: [-0.4, 0.4, -0.4] }}
+              transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+              className="w-full max-w-[360px] sm:max-w-[460px] lg:max-w-[560px] h-auto select-none"
+              draggable={false}
+            />
           </motion.div>
 
-          {/* Carta de Entidades Financieras */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.5 }}
-            className="mt-16 mb-20 max-w-4xl mx-auto"
+          {/* Subtitle */}
+          <motion.p
+            {...fadeUp(0.38)}
+            className="text-lg md:text-xl mb-8 max-w-2xl mx-auto leading-relaxed text-muted-foreground dark:text-[rgba(194,232,255,0.65)]"
           >
-            <div className="relative">
-              <div className="relative z-10">
-                <div className="text-center mb-6">
-                  <p className="text-white/70 text-sm font-medium mb-2">Información de</p>
-                  <h3 className="text-2xl md:text-3xl font-bold text-white mb-2">
-                    +20 Entidades Financieras
-                  </h3>
-                  <p className="text-white/60 text-sm">
-                    Bancos, Compañias de financiamiento y otras instituciones
+            Tasas, plazos y condiciones de +20 bancos colombianos en un solo lugar.
+          </motion.p>
+
+          {/* CTAs */}
+          <motion.div
+            {...fadeUp(0.5)}
+            className="flex flex-col sm:flex-row gap-4 justify-center mb-16"
+          >
+            <motion.div
+              whileHover={reduced ? {} : { scale: 1.04, y: -2 }}
+              whileTap={reduced ? {} : { scale: 0.97 }}
+              transition={{ duration: 0.18, ease: EASE_OUT_QUINT }}
+            >
+              <Button
+                size="lg"
+                onClick={() => navigate('/creditos')}
+                className="bg-brand-sunset hover:bg-brand-sunset/90 text-brand-dark font-bold px-8 py-3 h-auto rounded-xl shadow-lg shadow-brand-sunset/25 transition-shadow duration-300"
+              >
+                <Search className="w-5 h-5 mr-2" />
+                Comparar Créditos
+              </Button>
+            </motion.div>
+
+            <motion.div
+              whileHover={reduced ? {} : { scale: 1.03, y: -2 }}
+              whileTap={reduced ? {} : { scale: 0.97 }}
+              transition={{ duration: 0.18, ease: EASE_OUT_QUINT }}
+            >
+              <Button
+                size="lg"
+                onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
+                className="font-semibold px-8 py-3 h-auto rounded-xl border border-border bg-muted/50 hover:bg-muted text-foreground dark:border-white/25 dark:bg-white/[0.06] dark:hover:bg-white/[0.12] dark:text-white dark:backdrop-blur-sm"
+              >
+                ¿Cómo funciona?
+              </Button>
+            </motion.div>
+          </motion.div>
+
+          {/* Stats — each enters with a pop, staggered */}
+          <div className="flex justify-center items-center gap-0 mb-12">
+            {stats.map((stat, i) => (
+              <div key={stat.label} className="flex items-center">
+                <motion.div
+                  initial={{ opacity: 0, scale: reduced ? 1 : 0.8, y: reduced ? 0 : 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.62 + i * 0.1, ease: EASE_OUT_EXPO }}
+                  className="text-center px-3 sm:px-8 lg:px-12"
+                >
+                  <p className="text-2xl sm:text-4xl lg:text-6xl font-display font-bold tabular leading-none text-foreground dark:text-white">
+                    {stat.value}
                   </p>
-                </div>
-
-                {/* Grid de logos/nombres de bancos */}
-                <div className="grid grid-cols-3 md:grid-cols-5 gap-4 mt-6">
-                  {[
-                    { name: "Bancolombia", logo: "/images/banks/bancolombia.png" },
-                    { name: "Davivienda", logo: "/images/banks/davivienda.png" },
-                    { name: "BBVA", logo: "/images/banks/bbva.png" },
-                    { name: "Scotiabank", logo: "/images/banks/davibank.jpg" },
-                    { name: "Itaú", logo: "/images/banks/itau.png" },
-                    { name: "Lulo Bank", logo: "/images/banks/lulobank.png" },
-                    { name: "Nu", logo: "/images/banks/nu.svg" },
-                    { name: "Credifamilia", logo: "/images/banks/credifamilia.png" },
-                    { name: "KOA", logo: "/images/banks/koa.png" },
-                    { name: "IRIS", logo: "/images/banks/iris.png" },
-                  ].slice(0, window.innerWidth < 768 ? 6 : 10).map((bank, index) => (
-                    <motion.div
-                      key={bank.name}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{
-                        opacity: 1,
-                        scale: 1,
-                        y: [0, -8, 0]
-                      }}
-                      transition={{
-                        opacity: { duration: 0.3, delay: 0.6 + index * 0.05 },
-                        scale: { duration: 0.3, delay: 0.6 + index * 0.05 },
-                        y: {
-                          duration: 3 + (index % 3) * 0.5,
-                          repeat: Infinity,
-                          ease: "easeInOut",
-                          delay: index * 0.2
-                        }
-                      }}
-                      className="flex items-center justify-center p-4 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all duration-300"
-                    >
-                      <img
-                        src={bank.logo}
-                        alt={bank.name}
-                        className="h-8 w-auto object-contain filter brightness-0 invert opacity-80"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
-                          const parent = target.parentElement;
-                          if (parent) {
-                            const span = document.createElement('span');
-                            span.className = 'text-white/80 text-xs md:text-sm font-medium text-center';
-                            span.textContent = bank.name;
-                            parent.appendChild(span);
-                          }
-                        }}
-                      />
-                    </motion.div>
-                  ))}
-                </div>
-
-                <p className="text-center text-white/50 text-xs mt-6">
-                  Y muchas más...
-                </p>
+                  <p className="text-[10px] uppercase tracking-[0.18em] mt-2 text-muted-foreground dark:text-[rgba(194,232,255,0.5)]">
+                    {stat.label}
+                  </p>
+                </motion.div>
+                {i < stats.length - 1 && (
+                  <motion.div
+                    initial={{ opacity: 0, scaleY: reduced ? 1 : 0 }}
+                    animate={{ opacity: 1, scaleY: 1 }}
+                    transition={{ duration: 0.4, delay: 0.68 + i * 0.1, ease: EASE_OUT_QUINT }}
+                    className="w-px h-12 bg-border dark:bg-white/15 origin-center"
+                  />
+                )}
               </div>
+            ))}
+          </div>
+
+          {/* Bank grid — staggered entrance */}
+          <motion.div
+            initial={{ opacity: 0, y: reduced ? 0 : 28 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.65, delay: 0.88, ease: EASE_OUT_QUINT }}
+            className="w-full"
+          >
+            <div className="text-center mb-6">
+              <p className="text-sm font-medium mb-4 text-muted-foreground dark:text-[rgba(194,232,255,0.5)] uppercase tracking-widest">
+                +20 entidades financieras
+              </p>
             </div>
+            <BankGrid isDark={isDark} />
           </motion.div>
         </div>
       </div>
 
-      {/* Transición suave hacia la siguiente sección con gradiente */}
-      <div className="absolute bottom-0 left-0 right-0 h-32">
-        {/* Gradiente de transición de oscuro a transparente */}
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#001233]/60 to-[#001233]/0" />
-
-        <svg
-          viewBox="0 0 1440 120"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          className="w-full h-full relative"
-          preserveAspectRatio="none"
-        >
-          <defs>
-            <linearGradient id="heroGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#001233" stopOpacity="0.8" />
-              <stop offset="50%" stopColor="#001233" stopOpacity="0.3" />
-              <stop offset="100%" stopColor="hsl(var(--background))" stopOpacity="1" />
-            </linearGradient>
-          </defs>
-          <path
-            d="M0 120L60 110C120 100 240 80 360 70C480 60 600 60 720 65C840 70 960 80 1080 85C1200 90 1320 90 1380 90L1440 90V120H1380C1320 120 1200 120 1080 120C960 120 840 120 720 120C600 120 480 120 360 120C240 120 120 120 60 120H0Z"
-            fill="url(#heroGradient)"
-          />
-        </svg>
-      </div>
+      <div className="h-16 mt-8" />
     </section>
   );
 }

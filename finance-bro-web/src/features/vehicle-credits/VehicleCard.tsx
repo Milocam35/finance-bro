@@ -151,7 +151,8 @@ export function VehicleCard({
       initial={{ opacity: 0, y: 24 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      transition={{ duration: 0.45, delay: index * 0.07 }}
+      transition={{ duration: 0.45, delay: index * 0.07, ease: [0.22, 1, 0.36, 1] }}
+      whileHover={{ y: -5, transition: { duration: 0.2, ease: [0.25, 1, 0.5, 1] } }}
       className="h-[300px]"
       style={{ perspective: "1200px" }}
     >
@@ -178,7 +179,7 @@ export function VehicleCard({
             <div className="flex items-center gap-3">
               <div
                 className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 overflow-hidden"
-                style={{ backgroundColor: "#0466C818", border: "1.5px solid #0466C825" }}
+                style={{ backgroundColor: "hsl(var(--primary) / 0.08)", border: "1.5px solid hsl(var(--primary) / 0.15)" }}
               >
                 {logo ? (
                   <img
@@ -188,11 +189,11 @@ export function VehicleCard({
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
                       target.style.display = "none";
-                      target.parentElement!.innerHTML = `<span style="font-size:1.25rem;font-weight:700;color:#0466C8">${producto.entidad.nombre.charAt(0)}</span>`;
+                      target.parentElement!.innerHTML = `<span style="font-size:1.25rem;font-weight:700;color:#303AE4">${producto.entidad.nombre.charAt(0)}</span>`;
                     }}
                   />
                 ) : (
-                  <span className="text-xl font-bold text-[#0466C8]">
+                  <span className="text-xl font-bold text-primary">
                     {producto.entidad.nombre.charAt(0)}
                   </span>
                 )}
@@ -209,7 +210,7 @@ export function VehicleCard({
             </div>
 
             {/* ── Tasa + Cuota ── */}
-            <div className="rounded-xl p-3.5 bg-[#0466C808] border border-[#0466C818]">
+            <div className="rounded-xl p-3.5 bg-primary/[0.05] border border-primary/[0.1]">
               <div className="flex items-start gap-3">
                 {/* Tasa */}
                 <div className="flex-1 min-w-0">
@@ -244,7 +245,7 @@ export function VehicleCard({
                     <Calculator className="w-3 h-3" />
                     Cuota /mes
                   </p>
-                  <p className="text-3xl font-extrabold leading-none text-[#0466C8]">
+                  <p className="text-3xl font-extrabold leading-none text-primary">
                     {simulacionResult
                       ? formatCurrency(simulacionResult.cuota_mensual)
                       : <span className="text-muted-foreground/35 font-normal text-xs">Calculando…</span>
@@ -275,8 +276,8 @@ export function VehicleCard({
                   onClick={(e) => { e.stopPropagation(); onToggleComparison(); }}
                   className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 transition-all ${
                     isInComparison
-                      ? "border-[#0466C8] bg-[#0466C8]/15 text-[#0466C8]"
-                      : "border-[#0466C8]/30 bg-[#0466C8]/5 text-[#0466C8]/60 hover:border-[#0466C8] hover:text-[#0466C8]"
+                      ? "border-primary bg-primary/15 text-primary"
+                      : "border-primary/30 bg-primary/5 text-primary/60 hover:border-primary hover:text-primary"
                   }`}
                   title={isInComparison ? "Quitar de comparación" : "Agregar a comparación"}
                 >
@@ -286,7 +287,7 @@ export function VehicleCard({
               {/* Más info — pequeño */}
               <button
                 onClick={() => setIsFlipped(true)}
-                className="w-9 h-9 rounded-xl border border-[#0466C8]/30 bg-[#0466C8]/5 text-[#0466C8]/60 hover:border-[#0466C8] hover:text-[#0466C8] flex items-center justify-center transition-all"
+                className="w-9 h-9 rounded-xl border border-primary/30 bg-primary/5 text-primary/60 hover:border-primary hover:text-primary flex items-center justify-center transition-all"
                 title="Más información"
               >
                 <Info className="w-3.5 h-3.5" />
@@ -294,7 +295,7 @@ export function VehicleCard({
               {/* Plan de pagos — grande */}
               <button
                 onClick={(e) => { e.stopPropagation(); setIsSheetOpen(true); }}
-                className="flex-1 h-9 rounded-xl bg-[#0466C8] hover:bg-[#0353A4] text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-[#0466C8]/25 active:scale-95"
+                className="flex-1 h-9 rounded-xl bg-primary hover:bg-primary/90 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-primary/20 dark:shadow-none active:scale-95"
               >
                 <Calculator className="w-3.5 h-3.5" />
                 Plan de pagos
@@ -302,7 +303,7 @@ export function VehicleCard({
               {/* Solicitar — grande */}
               <button
                 onClick={(e) => { e.stopPropagation(); if (productUrl) window.open(productUrl, "_blank", "noopener,noreferrer"); }}
-                className="flex-1 h-9 rounded-xl bg-[#0466C8] hover:bg-[#0353A4] text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-[#0466C8]/25 active:scale-95"
+                className="flex-1 h-9 rounded-xl bg-primary hover:bg-primary/90 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-primary/20 dark:shadow-none active:scale-95"
                 title="Ir a página oficial"
               >
                 <ExternalLink className="w-3.5 h-3.5" />

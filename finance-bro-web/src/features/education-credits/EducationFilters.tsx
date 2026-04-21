@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
-import { DollarSign, Calendar, ArrowUpDown, Info, RotateCcw, GraduationCap } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { DollarSign, Calendar, ArrowUpDown, Info, RotateCcw, GraduationCap, ChevronDown } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
 import {
@@ -47,6 +47,7 @@ export function EducationFilters({ onFilterChange }: EducationFiltersProps) {
   const [filters, setFilters] = useState<EducationFilterState>(DEFAULT_FILTERS);
   const [amountInput, setAmountInput] = useState<string>("20000000");
   const [termInput, setTermInput] = useState<string>("1");
+  const [mobileExpanded, setMobileExpanded] = useState(false);
 
   const handleChange = (key: keyof EducationFilterState, value: number | string) => {
     const newFilters = { ...filters, [key]: value };
@@ -136,6 +137,195 @@ export function EducationFilters({ onFilterChange }: EducationFiltersProps) {
     }).format(num);
   };
 
+  const formatAmountShort = (value: number) => {
+    if (value >= 1_000_000) return `$${Math.round(value / 1_000_000)}M`;
+    return formatCurrency(value);
+  };
+
+  const eduTypeLabel: Record<string, string> = { all: "Todos", pregrado: "Pregrado", posgrado: "Posgrado" };
+
+  const filterBody = (
+    <div className="px-5 pt-4 pb-5 lg:px-8 lg:pt-0 lg:pb-8">
+      {/* Sort & Education Type filters */}
+      <div className="grid gap-5 lg:grid-cols-3 mb-6 lg:mb-8">
+        {/* Nivel educativo */}
+        <div className="space-y-3 lg:col-span-2">
+          <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <GraduationCap className="w-4 h-4 text-secondary" />
+            Nivel educativo
+          </label>
+          <div className="flex gap-2">
+            {([
+              { value: "all", label: "Todos" },
+              { value: "pregrado", label: "Pregrado" },
+              { value: "posgrado", label: "Posgrado" },
+            ] as const).map((option) => (
+              <button
+                key={option.value}
+                onClick={() => handleChange("educationType", option.value)}
+                className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border ${
+                  filters.educationType === option.value
+                    ? "bg-secondary text-primary-foreground border-secondary shadow-md shadow-secondary/20"
+                    : "bg-muted text-foreground border-border hover:bg-border hover:border-border"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Ordenar por */}
+        <div className="space-y-3">
+          <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <ArrowUpDown className="w-4 h-4 text-secondary" />
+            Ordenar por
+          </label>
+          <Select
+            value={filters.sortBy}
+            onValueChange={(value) => handleChange("sortBy", value)}
+          >
+            <SelectTrigger className="h-[42px] rounded-xl border-border bg-muted hover:bg-border transition-colors text-sm font-medium text-foreground focus:ring-ring/20 focus:border-ring/40">
+              <SelectValue placeholder="Ordenar por" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="rate">Menor tasa</SelectItem>
+              <SelectItem value="payment">Menor mensualidad</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div className="relative mb-6 lg:mb-8">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-border" />
+        </div>
+        <div className="relative flex justify-center">
+          <span className="bg-card px-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground/60">
+            Simulación
+          </span>
+        </div>
+      </div>
+
+      {/* Sliders */}
+      <div className="grid gap-6 lg:grid-cols-2 lg:gap-8">
+        {/* Amount Slider */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <div className="w-7 h-7 rounded-lg bg-secondary/10 flex items-center justify-center">
+                <DollarSign className="w-4 h-4 text-secondary" />
+              </div>
+              Valor de la matrícula
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="cursor-help">
+                    <Info className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-secondary transition-colors" />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p className="text-sm">
+                    Valor estimado de la matrícula o programa educativo
+                    que deseas financiar.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </label>
+          </div>
+
+          <div className="relative">
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-foreground/[0.02] to-secondary/[0.03] border border-secondary/10">
+              <span className="text-secondary/60 text-sm font-medium">$</span>
+              <Input
+                type="text"
+                value={formatInputCurrency(amountInput)}
+                onChange={handleAmountInputChange}
+                onBlur={handleAmountInputBlur}
+                className="border-0 bg-transparent p-0 h-auto text-lg font-bold text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/50"
+                placeholder="Ingrese el valor"
+              />
+              <span className="text-xs font-medium text-secondary bg-secondary/10 px-2 py-1 rounded-md whitespace-nowrap">
+                COP
+              </span>
+            </div>
+          </div>
+
+          <div className="px-1">
+            <Slider
+              value={[filters.amount]}
+              onValueChange={([value]) => handleSliderChange(value)}
+              min={MIN_AMOUNT}
+              max={MAX_AMOUNT}
+              step={1000000}
+              className="py-2"
+            />
+            <div className="flex justify-between mt-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">$1M</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">$200M</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Term Slider */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <div className="w-7 h-7 rounded-lg bg-secondary/10 flex items-center justify-center">
+                <Calendar className="w-4 h-4 text-secondary" />
+              </div>
+              Plazo del crédito
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="cursor-help">
+                    <Info className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-secondary transition-colors" />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p className="text-sm">
+                    Los créditos educativos suelen tener periodos de gracia
+                    durante los estudios y plazos extendidos después de graduarse.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </label>
+          </div>
+
+          <div className="relative">
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-foreground/[0.02] to-secondary/[0.03] border border-secondary/10">
+              <Input
+                type="text"
+                value={termInput}
+                onChange={handleTermInputChange}
+                onBlur={handleTermInputBlur}
+                className="border-0 bg-transparent p-0 h-auto text-lg font-bold text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/50"
+                placeholder="Plazo en años"
+              />
+              <span className="text-xs font-medium text-secondary bg-secondary/10 px-2 py-1 rounded-md whitespace-nowrap">
+                años
+              </span>
+            </div>
+          </div>
+
+          <div className="px-1">
+            <Slider
+              value={[filters.term]}
+              onValueChange={([value]) => handleTermSliderChange(value)}
+              min={MIN_TERM}
+              max={MAX_TERM}
+              step={1}
+              className="py-2"
+            />
+            <div className="flex justify-between mt-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">1 año</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">15 años</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -151,9 +341,9 @@ export function EducationFilters({ onFilterChange }: EducationFiltersProps) {
         backgroundSize: '24px 24px',
       }} />
 
-      <div className="relative p-6 lg:p-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+      {/* Always-visible header */}
+      <div className="relative px-5 pt-5 lg:px-8 lg:pt-8 pb-4 lg:pb-0">
+        <div className="flex items-center justify-between lg:mb-8">
           <div className="flex items-center gap-3">
             <div className="relative">
               <div className="w-10 h-10 rounded-xl bg-foreground flex items-center justify-center shadow-lg shadow-foreground/20">
@@ -182,182 +372,42 @@ export function EducationFilters({ onFilterChange }: EducationFiltersProps) {
           )}
         </div>
 
-        {/* Sort & Education Type filters */}
-        <div className="grid gap-6 lg:grid-cols-3 mb-8">
-          <div className="space-y-3">
-            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <ArrowUpDown className="w-4 h-4 text-secondary" />
-              Ordenar por
-            </label>
-            <Select
-              value={filters.sortBy}
-              onValueChange={(value) => handleChange("sortBy", value)}
+        {/* Mobile toggle row */}
+        <button
+          className="lg:hidden w-full flex items-center justify-between mt-3 pt-3 border-t border-border/50"
+          onClick={() => setMobileExpanded(v => !v)}
+        >
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span className="font-semibold text-foreground">{formatAmountShort(filters.amount)}</span>
+            <span>·</span>
+            <span>{filters.term} {filters.term === 1 ? "año" : "años"}</span>
+            <span>·</span>
+            <span>{eduTypeLabel[filters.educationType]}</span>
+          </div>
+          <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-300 ${mobileExpanded ? "rotate-180" : ""}`} />
+        </button>
+      </div>
+
+      {/* Mobile: animated collapse */}
+      <div className="lg:hidden">
+        <AnimatePresence initial={false}>
+          {mobileExpanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              style={{ overflow: "hidden" }}
+              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
             >
-              <SelectTrigger className="h-[42px] rounded-xl border-border bg-muted hover:bg-border transition-colors text-sm font-medium text-foreground focus:ring-ring/20 focus:border-ring/40">
-                <SelectValue placeholder="Ordenar por" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="rate">Menor tasa</SelectItem>
-                <SelectItem value="payment">Menor mensualidad</SelectItem>
-                <SelectItem value="cat">Menor costo total</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+              {filterBody}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
-          <div className="space-y-3">
-            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <GraduationCap className="w-4 h-4 text-secondary" />
-              Nivel educativo
-            </label>
-            <div className="flex gap-2">
-              {([
-                { value: "all", label: "Todos" },
-                { value: "pregrado", label: "Pregrado" },
-                { value: "posgrado", label: "Posgrado" },
-              ] as const).map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => handleChange("educationType", option.value)}
-                  className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border ${
-                    filters.educationType === option.value
-                      ? "bg-secondary text-primary-foreground border-secondary shadow-md shadow-secondary/20"
-                      : "bg-muted text-foreground border-border hover:bg-border hover:border-border"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Divider */}
-        <div className="relative mb-8">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-border" />
-          </div>
-          <div className="relative flex justify-center">
-            <span className="bg-card px-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground/60">
-              Simulación
-            </span>
-          </div>
-        </div>
-
-        {/* Sliders */}
-        <div className="grid gap-8 lg:grid-cols-2">
-          {/* Amount Slider */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-                <div className="w-7 h-7 rounded-lg bg-secondary/10 flex items-center justify-center">
-                  <DollarSign className="w-4 h-4 text-secondary" />
-                </div>
-                Valor de la matrícula
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="cursor-help">
-                      <Info className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-secondary transition-colors" />
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p className="text-sm">
-                      Valor estimado de la matrícula o programa educativo
-                      que deseas financiar.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </label>
-            </div>
-
-            <div className="relative">
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-foreground/[0.02] to-secondary/[0.03] border border-secondary/10">
-                <span className="text-secondary/60 text-sm font-medium">$</span>
-                <Input
-                  type="text"
-                  value={formatInputCurrency(amountInput)}
-                  onChange={handleAmountInputChange}
-                  onBlur={handleAmountInputBlur}
-                  className="border-0 bg-transparent p-0 h-auto text-lg font-bold text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/50"
-                  placeholder="Ingrese el valor"
-                />
-                <span className="text-xs font-medium text-secondary bg-secondary/10 px-2 py-1 rounded-md whitespace-nowrap">
-                  COP
-                </span>
-              </div>
-            </div>
-
-            <div className="px-1">
-              <Slider
-                value={[filters.amount]}
-                onValueChange={([value]) => handleSliderChange(value)}
-                min={MIN_AMOUNT}
-                max={MAX_AMOUNT}
-                step={1000000}
-                className="py-2"
-              />
-              <div className="flex justify-between mt-2">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">$1M</span>
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">$200M</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Term Slider */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-                <div className="w-7 h-7 rounded-lg bg-secondary/10 flex items-center justify-center">
-                  <Calendar className="w-4 h-4 text-secondary" />
-                </div>
-                Plazo del crédito
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="cursor-help">
-                      <Info className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-secondary transition-colors" />
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p className="text-sm">
-                      Los créditos educativos suelen tener periodos de gracia
-                      durante los estudios y plazos extendidos después de graduarse.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </label>
-            </div>
-
-            <div className="relative">
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-foreground/[0.02] to-secondary/[0.03] border border-secondary/10">
-                <Input
-                  type="text"
-                  value={termInput}
-                  onChange={handleTermInputChange}
-                  onBlur={handleTermInputBlur}
-                  className="border-0 bg-transparent p-0 h-auto text-lg font-bold text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-muted-foreground/50"
-                  placeholder="Plazo en años"
-                />
-                <span className="text-xs font-medium text-secondary bg-secondary/10 px-2 py-1 rounded-md whitespace-nowrap">
-                  años
-                </span>
-              </div>
-            </div>
-
-            <div className="px-1">
-              <Slider
-                value={[filters.term]}
-                onValueChange={([value]) => handleTermSliderChange(value)}
-                min={MIN_TERM}
-                max={MAX_TERM}
-                step={1}
-                className="py-2"
-              />
-              <div className="flex justify-between mt-2">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">1 año</span>
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">15 años</span>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* Desktop: always visible */}
+      <div className="hidden lg:block">
+        {filterBody}
       </div>
     </motion.div>
   );

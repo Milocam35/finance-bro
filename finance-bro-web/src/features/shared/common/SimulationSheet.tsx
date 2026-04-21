@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import {
   Sheet,
@@ -107,7 +108,7 @@ export function SimulationSheet({
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <SheetContent
         side="right"
-        className="w-full sm:max-w-[480px] overflow-y-auto flex flex-col gap-0 p-0"
+        className="w-full sm:max-w-[480px] overflow-y-auto flex flex-col gap-0 p-0 min-w-0"
       >
         {/* Top accent bar */}
         <div
@@ -117,7 +118,7 @@ export function SimulationSheet({
           }}
         />
 
-        <div className="flex flex-col gap-5 p-6 flex-1">
+        <div className="flex flex-col gap-5 p-4 sm:p-6 flex-1">
           {/* Header */}
           <SheetHeader className="p-0">
             <div className="flex items-center gap-2 mb-1">
@@ -234,12 +235,21 @@ export function SimulationSheet({
                 <p className="text-[11px] text-muted-foreground mb-1">
                   Cuota mensual estimada
                 </p>
-                <p
-                  className="text-3xl font-extrabold tracking-tight"
-                  style={{ color: bankColor.primary }}
-                >
-                  {formatCOP(resultado.cuota_mensual)}
-                </p>
+                <div className="overflow-hidden">
+                  <AnimatePresence mode="wait">
+                    <motion.p
+                      key={resultado.cuota_mensual}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                      className="text-3xl font-extrabold tracking-tight"
+                      style={{ color: bankColor.primary }}
+                    >
+                      {formatCOP(resultado.cuota_mensual)}
+                    </motion.p>
+                  </AnimatePresence>
+                </div>
                 <p className="text-[11px] text-muted-foreground mt-1">por mes</p>
               </div>
 
@@ -260,37 +270,44 @@ export function SimulationSheet({
               </div>
 
               {/* Ahorro vs promedio */}
-              {ahorro !== null && Math.abs(ahorro) > 0 && (
-                <div
-                  className={`rounded-lg p-3 flex items-center gap-2 ${
-                    isBarato
-                      ? "bg-emerald-50 dark:bg-emerald-950/40"
-                      : "bg-orange-50 dark:bg-orange-950/40"
-                  }`}
-                >
-                  {isBarato ? (
-                    <TrendingDown className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  ) : (
-                    <TrendingUp className="w-4 h-4 text-orange-500 shrink-0" />
-                  )}
-                  <div>
-                    <p
-                      className={`text-[11px] font-semibold ${
-                        isBarato
-                          ? "text-emerald-700 dark:text-emerald-300"
-                          : "text-orange-600 dark:text-orange-400"
-                      }`}
-                    >
-                      {isBarato ? "Más barato" : "Más caro"} que el promedio
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {isBarato ? "-" : "+"}
-                      {formatCOP(Math.abs(ahorro))} / mes vs. promedio de{" "}
-                      {formatCOP(promedioLote!)}
-                    </p>
-                  </div>
-                </div>
-              )}
+              <AnimatePresence mode="wait">
+                {ahorro !== null && Math.abs(ahorro) > 0 && (
+                  <motion.div
+                    key={isBarato ? "cheap" : "expensive"}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                    className={`rounded-lg p-3 flex items-center gap-2 ${
+                      isBarato
+                        ? "bg-emerald-50 dark:bg-emerald-950/40"
+                        : "bg-orange-50 dark:bg-orange-950/40"
+                    }`}
+                  >
+                    {isBarato ? (
+                      <TrendingDown className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    ) : (
+                      <TrendingUp className="w-4 h-4 text-orange-500 shrink-0" />
+                    )}
+                    <div>
+                      <p
+                        className={`text-[11px] font-semibold ${
+                          isBarato
+                            ? "text-emerald-700 dark:text-emerald-300"
+                            : "text-orange-600 dark:text-orange-400"
+                        }`}
+                      >
+                        {isBarato ? "Más barato" : "Más caro"} que el promedio
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {isBarato ? "-" : "+"}
+                        {formatCOP(Math.abs(ahorro))} / mes vs. promedio de{" "}
+                        {formatCOP(promedioLote!)}
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           )}
 
@@ -300,8 +317,8 @@ export function SimulationSheet({
               variant="outline"
               className={`w-full gap-2 ${
                 isInComparison
-                  ? "border-[#FFC300] bg-[#FFC300]/10 text-[#FFC300] hover:bg-[#FFC300]/20"
-                  : "hover:border-[#FFC300]/50 hover:text-[#FFC300]"
+                  ? "border-brand-sunset bg-brand-sunset/10 text-brand-sunset hover:bg-brand-sunset/20"
+                  : "hover:border-brand-sunset/50 hover:text-brand-sunset"
               }`}
               onClick={onAddToComparison}
             >

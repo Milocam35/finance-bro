@@ -1,107 +1,161 @@
-@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600;700;800;900&display=swap');
+/* Syne Bold (headings) + Poppins Light/Regular/Semibold (body) */
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700&family=Poppins:wght@300;400;600&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Financial Comparison Platform Design System */
+/* FinanceBro Design System */
 
 @layer base {
   :root {
-    --background: 0 0% 98%;
-    --foreground: 211 100% 10%;
+    /* ── FinanceBro Brand Palette ─────────────────────────────── */
+    /* Blue Electric  #303AE4  → HSL 237 77% 54%                  */
+    /* Deep Ocean     #052659  → HSL 216 89% 18%                  */
+    /* Sky Mist       #C2E8FF  → HSL 203 100% 88%                 */
+    /* Sunset Orange  #FBB347  → HSL 36  96% 63%                  */
+    /* Dark Blue      #0D1B2A  → HSL 211 53% 11%                  */
+
+    /* shadcn token system — light mode */
+    --background: 203 50% 97%;          /* Sky Mist tint — barely-there blue */
+    --foreground: 211 53% 11%;          /* Dark Blue #0D1B2A */
 
     --card: 0 0% 100%;
-    --card-foreground: 211 100% 10%;
+    --card-foreground: 211 53% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 211 100% 10%;
+    --popover-foreground: 211 53% 11%;
 
-    --primary: 213 97% 25%;
+    --primary: 237 77% 54%;             /* Blue Electric #303AE4 */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 212 95% 40%;
+    --secondary: 216 89% 18%;           /* Deep Ocean #052659 */
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 220 11% 95%;
-    --muted-foreground: 219 18% 42%;
+    --muted: 203 55% 93%;               /* Sky Mist light tint */
+    --muted-foreground: 216 30% 40%;    /* Deep Ocean muted */
 
-    --accent: 49 100% 52%;
-    --accent-foreground: 211 100% 10%;
+    --accent: 36 96% 63%;               /* Sunset Orange #FBB347 */
+    --accent-foreground: 211 53% 11%;   /* Dark Blue on orange */
 
     --destructive: 0 70% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 11% 90%;
-    --input: 220 11% 90%;
-    --ring: 212 95% 40%;
+    --border: 203 40% 88%;              /* Sky Mist border */
+    --input: 203 40% 88%;
+    --ring: 237 77% 54%;                /* Blue Electric focus ring */
 
     --radius: 0.75rem;
 
-    /* Custom tokens */
-    --hero-gradient: linear-gradient(135deg, hsl(213 97% 25%) 0%, hsl(212 95% 40%) 50%, hsl(214 95% 33%) 100%);
-    --card-shadow: 0 4px 20px -4px hsl(213 97% 25% / 0.08);
-    --card-shadow-hover: 0 12px 40px -8px hsl(213 97% 25% / 0.15);
-    --glow-primary: 0 0 40px hsl(212 95% 40% / 0.2);
-    --glow-secondary: 0 0 40px hsl(49 100% 52% / 0.2);
+    /* ── Brand raw tokens (for inline use / non-shadcn) ─────── */
+    --brand-electric: #303AE4;
+    --brand-ocean:    #052659;
+    --brand-mist:     #C2E8FF;
+    --brand-sunset:   #FBB347;
+    --brand-dark:     #0D1B2A;
 
-    /* Rate colors */
-    --rate-excellent: 150 60% 40%;
-    --rate-good: 212 95% 40%;
-    --rate-average: 46 100% 50%;
-    --rate-high: 15 80% 50%;
+    /* ── Subtle tints ──────────────────────────────────────────  */
+    --brand-electric-10: hsl(237 77% 54% / 0.10);
+    --brand-electric-15: hsl(237 77% 54% / 0.15);
+    --brand-ocean-10:    hsl(216 89% 18% / 0.08);
+    --brand-sunset-15:   hsl(36 96% 63% / 0.15);
+    --brand-mist-subtle: hsl(203 50% 96%);
 
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 218 28% 28%;
-    --sidebar-primary: 211 100% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 220 11% 95%;
-    --sidebar-accent-foreground: 211 100% 10%;
-    --sidebar-border: 220 11% 90%;
-    --sidebar-ring: 212 95% 40%;
+    /* ── Shadows ──────────────────────────────────────────────── */
+    --card-shadow:       0 2px 12px -2px hsl(237 77% 54% / 0.08);
+    --card-shadow-hover: 0 8px 32px -4px hsl(237 77% 54% / 0.16);
+    --card-shadow-ocean: 0 4px 20px -4px hsl(216 89% 18% / 0.12);
+
+    /* ── Rate colors ──────────────────────────────────────────── */
+    --rate-excellent: 150 55% 38%;      /* green */
+    --rate-good:      237 77% 54%;      /* Blue Electric */
+    --rate-average:   36 96% 63%;       /* Sunset Orange */
+    --rate-high:      0 70% 50%;        /* red */
+
+    /* ── Sidebar ──────────────────────────────────────────────── */
+    --sidebar-background: 203 50% 97%;
+    --sidebar-foreground: 211 53% 11%;
+    --sidebar-primary: 216 89% 18%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 203 55% 93%;
+    --sidebar-accent-foreground: 211 53% 11%;
+    --sidebar-border: 203 40% 88%;
+    --sidebar-ring: 237 77% 54%;
+
+    /* ── Type scale ──────────────────────────────────────────── */
+    /* Marketing headings: fluid (clamp) */
+    --text-display: clamp(2.75rem, 5.5vw + 0.75rem, 5rem);   /* ~44–80px */
+    --text-h1:      clamp(2rem,    4vw  + 0.5rem,  3.5rem);  /* ~32–56px */
+    --text-h2:      clamp(1.5rem,  2.5vw + 0.25rem, 2.25rem); /* ~24–36px */
+    --text-h3:      clamp(1.25rem, 1.5vw + 0.25rem, 1.75rem); /* ~20–28px */
+
+    /* App UI: fixed rem */
+    --text-h4:      1.25rem;   /* 20px */
+    --text-h5:      1.125rem;  /* 18px */
+    --text-body-lg: 1.125rem;  /* 18px */
+    --text-body:    1rem;      /* 16px */
+    --text-sm:      0.875rem;  /* 14px */
+    --text-xs:      0.75rem;   /* 12px */
+
+    /* Leading */
+    --leading-tight:  1.1;
+    --leading-snug:   1.25;
+    --leading-body:   1.65;
+    --leading-relaxed:1.75;
+
+    /* Tracking */
+    --tracking-tight:  -0.025em;
+    --tracking-normal:  0em;
+    --tracking-wide:    0.03em;
+    --tracking-widest:  0.08em;
   }
 
   .dark {
-    --background: 211 100% 5%;
-    --foreground: 220 11% 95%;
+    --background: 216 89% 7%;           /* Deep Ocean dark */
+    --foreground: 203 60% 93%;          /* Sky Mist light */
 
-    --card: 211 100% 8%;
-    --card-foreground: 220 11% 95%;
+    --card: 216 60% 11%;
+    --card-foreground: 203 60% 93%;
 
-    --popover: 211 100% 8%;
-    --popover-foreground: 220 11% 95%;
+    --popover: 216 60% 11%;
+    --popover-foreground: 203 60% 93%;
 
-    --primary: 212 95% 40%;
+    --primary: 237 77% 62%;             /* Blue Electric — slightly lighter on dark */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 214 95% 33%;
+    --secondary: 237 50% 30%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 218 28% 18%;
-    --muted-foreground: 220 11% 64%;
+    --muted: 216 50% 16%;
+    --muted-foreground: 203 30% 65%;
 
-    --accent: 49 100% 52%;
-    --accent-foreground: 211 100% 10%;
+    --accent: 36 96% 63%;               /* Sunset Orange — same on dark */
+    --accent-foreground: 211 53% 11%;
 
-    --destructive: 0 65% 45%;
+    --destructive: 0 65% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 218 28% 20%;
-    --input: 218 28% 20%;
-    --ring: 212 95% 40%;
+    --border: 216 40% 22%;
+    --input: 216 40% 22%;
+    --ring: 237 77% 62%;
 
-    --hero-gradient: linear-gradient(135deg, hsl(211 100% 8%) 0%, hsl(213 97% 25%) 50%, hsl(212 95% 40%) 100%);
-    --card-shadow: 0 4px 20px -4px hsl(0 0% 0% / 0.3);
-    --card-shadow-hover: 0 12px 40px -8px hsl(0 0% 0% / 0.5);
+    --card-shadow: 0 4px 20px -4px hsl(0 0% 0% / 0.4);
+    --card-shadow-hover: 0 12px 40px -8px hsl(0 0% 0% / 0.6);
 
-    --sidebar-background: 211 100% 8%;
-    --sidebar-foreground: 220 11% 95%;
-    --sidebar-primary: 212 95% 40%;
+    /* ── Rate colors (dark) ───────────────────────────────── */
+    --rate-excellent: 150 60% 48%;      /* green — brighter on dark */
+    --rate-good:      237 77% 62%;      /* Blue Electric light */
+    --rate-average:   36 96% 63%;       /* Sunset Orange — same */
+    --rate-high:      0 70% 55%;        /* red — slightly brighter */
+
+    --sidebar-background: 216 89% 7%;
+    --sidebar-foreground: 203 60% 93%;
+    --sidebar-primary: 237 77% 62%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 218 28% 18%;
-    --sidebar-accent-foreground: 220 11% 95%;
-    --sidebar-border: 218 28% 20%;
-    --sidebar-ring: 212 95% 40%;
+    --sidebar-accent: 216 50% 16%;
+    --sidebar-accent-foreground: 203 60% 93%;
+    --sidebar-border: 216 40% 22%;
+    --sidebar-ring: 237 77% 62%;
   }
 }
 
@@ -111,23 +165,65 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased;
-    font-family: 'Hanken Grotesk', sans-serif;
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Poppins', system-ui, sans-serif;
+    font-size: var(--text-body);
+    font-weight: 400;
+    line-height: var(--leading-body);
   }
 
+  /* Headings: Syne Bold — confianza, claridad, ambición */
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Hanken Grotesk', sans-serif;
+    font-family: 'Syne', system-ui, sans-serif;
+    font-weight: 700;
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-tight);
+  }
+
+  h1 { font-size: var(--text-h1); }
+  h2 { font-size: var(--text-h2); }
+  h3 { font-size: var(--text-h3); line-height: var(--leading-snug); }
+  h4 { font-size: var(--text-h4); line-height: var(--leading-snug); }
+  h5 { font-size: var(--text-h5); line-height: var(--leading-snug); }
+
+  /* Body prose: comfortable reading */
+  p {
+    max-width: 68ch;
+    line-height: var(--leading-body);
+  }
+
+  /* Financial numbers: tabular alignment */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: var(--tracking-normal);
   }
 }
 
 @layer utilities {
-  .text-gradient {
-    @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--secondary)) 100%);
+  /* Display headline — hero sections only */
+  .text-display {
+    font-family: 'Syne', system-ui, sans-serif;
+    font-size: var(--text-display);
+    font-weight: 700;
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-tight);
   }
 
-  .hero-gradient {
-    background: var(--hero-gradient);
+  /* Labels and uppercase caps */
+  .text-label {
+    font-family: 'Poppins', system-ui, sans-serif;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    letter-spacing: var(--tracking-widest);
+    text-transform: uppercase;
+  }
+
+  /* Financial figure — rates, amounts */
+  .text-figure {
+    font-family: 'Poppins', system-ui, sans-serif;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    letter-spacing: var(--tracking-normal);
   }
 
   .card-elevated {
@@ -138,14 +234,6 @@
   .card-elevated:hover {
     box-shadow: var(--card-shadow-hover);
     transform: translateY(-2px);
-  }
-
-  .glow-primary {
-    box-shadow: var(--glow-primary);
-  }
-
-  .glow-secondary {
-    box-shadow: var(--glow-secondary);
   }
 
   .custom-scrollbar::-webkit-scrollbar {
@@ -161,5 +249,41 @@
   .custom-scrollbar {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--border)) transparent;
+  }
+
+  /* ── Marquee (bank logos) ─────────────────────────────────── */
+  @keyframes marquee-left {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+  @keyframes marquee-right {
+    from { transform: translateX(-50%); }
+    to   { transform: translateX(0); }
+  }
+  .animate-marquee-left {
+    animation: marquee-left 28s linear infinite;
+  }
+  .animate-marquee-right {
+    animation: marquee-right 32s linear infinite;
+  }
+  .marquee-track:hover .animate-marquee-left,
+  .marquee-track:hover .animate-marquee-right {
+    animation-play-state: paused;
+  }
+
+  /* ── Wave section transitions ─────────────────────────────── */
+  @keyframes wave-drift-left {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+  @keyframes wave-drift-right {
+    from { transform: translateX(-50%); }
+    to   { transform: translateX(0); }
+  }
+  .animate-wave-slow {
+    animation: wave-drift-left 14s linear infinite;
+  }
+  .animate-wave-fast {
+    animation: wave-drift-right 9s linear infinite;
   }
 }

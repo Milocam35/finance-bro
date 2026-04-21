@@ -9,6 +9,21 @@ export default defineConfig(({ mode }) => ({
     host: "0.0.0.0",
     port: 5173,
     allowedHosts: "all",
+    proxy: {
+      "/api": {
+        target: process.env.VITE_API_URL || "http://localhost:3000",
+        changeOrigin: true,
+      },
+      "/health": {
+        target: process.env.VITE_API_URL || "http://localhost:3000",
+        changeOrigin: true,
+      },
+      "/auth": {
+        target: process.env.VITE_USERS_API_URL || "http://localhost:3001",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/auth/, ""),
+      },
+    },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
