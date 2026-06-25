@@ -1,0 +1,25 @@
+# ============================================
+# FinanceBro — Caddy reverse proxy (producción)
+# HTTPS automático (Let's Encrypt). DOMAIN y ACME_EMAIL vienen del .env
+# vía docker-compose (environment del servicio caddy).
+# ============================================
+
+{
+	email {$ACME_EMAIL}
+}
+
+# Frontend (SPA + gateway interno de /api y /api/auth vía su nginx)
+app.{$DOMAIN} {
+	encode gzip zstd
+	reverse_proxy frontend:80
+}
+
+# Panel de n8n (autohospedado)
+n8n.{$DOMAIN} {
+	reverse_proxy n8n:5678
+}
+
+# Raíz del dominio → redirige al frontend
+{$DOMAIN} {
+	redir https://app.{$DOMAIN}{uri} permanent
+}
