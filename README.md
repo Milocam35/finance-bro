@@ -12,22 +12,24 @@ Plataforma de comparación de productos financieros en Colombia con arquitectura
 
 ---
 
-## Estado Actual (Abril 2026)
+## Estado Actual (Junio 2026)
 
 | Componente | Estado |
 |---|---|
-| Backend API NestJS (20+ endpoints) | ✅ Implementado |
-| Frontend React (4 comparadores) | ✅ Implementado |
+| Backend API NestJS — MS Productos (20+ endpoints) | ✅ Implementado |
+| MS Usuarios — Autenticación JWT (registro / login / me) | ✅ Implementado |
+| Frontend React (4 comparadores + login/registro) | ✅ Implementado |
 | Simulador de créditos (backend + frontend) | ✅ Implementado |
 | Comparación multi-producto | ✅ Implementado |
-| Base de datos PostgreSQL (15 tablas) | ✅ Implementado |
+| Base de datos PostgreSQL (2 DBs: productos + usuarios) | ✅ Implementado |
 | Ingesta desde n8n (scraping) | ✅ Implementado |
+| Pipeline anti-bot (Playwright PDF + Tunnel Proxy) | ✅ Implementado |
 | Docker Compose (dev + prod) | ✅ Implementado |
 | CI/CD GitHub Actions | ✅ Implementado |
-| n8n Workflows (scraping + PDF) | ✅ Implementado |
+| n8n Workflows (scraping + PDF) | 🚧 Testing |
+| Migración a Supabase (Postgres gestionado) | 🚧 In Progress |
 | Sistema de caché Redis | 🚧 Infraestructura lista |
-| Autenticación de usuarios | 📋 Roadmap Q3 2026 |
-| Despliegue en producción (AWS EC2) | 📋 Pendiente |
+| Despliegue en producción (AWS / Hostinger) | 📋 Pendiente |
 
 ---
 
@@ -40,25 +42,44 @@ Plataforma de comparación de productos financieros en Colombia con arquitectura
 ## Arquitectura
 
 ```
-Bancos → n8n Scraping → PostgreSQL (NestJS Backend)
-                              ↓
-                     API REST (20+ endpoints)
-                       ↙            ↘
-              Swagger UI         Frontend React
-                              (TanStack Query)
-                                     ↓
-                          Comparador + Simulador
-                          FloatingBar + Dialog
+                    Bancos (sitios web + PDFs)
+                              │
+            ┌─────────────────┴─────────────────┐
+            ▼                                    ▼
+   n8n Scraping (6AM)              Playwright PDF Service (anti-bot)
+            │                                    │
+            └──────────► Tunnel Proxy :3002 ◄────┘
+                         (Cloudflare Tunnel)
+                              │
+                  POST /api/scraping/ingest
+                              ▼
+              ┌──────── PostgreSQL ────────┐
+              │  financebro_db   |  financebro_users_db
+              ▼                           ▼
+   MS Productos (NestJS :3000)   MS Usuarios (NestJS :3001)
+   catálogo · simulación · API    auth JWT · perfiles
+              │                           │
+              └─────────────┬─────────────┘
+                            ▼
+                 Frontend React (TanStack Query) :5173
+            Comparadores · Simulador · Login / Registro
 ```
 
-### Microservicios (Diseño Target)
+### Microservicios
 
 | Servicio | Responsabilidad | Estado |
 |---|---|---|
-| MS Productos Crediticios | Catálogo, ingesta, simulación, comparación | ✅ Implementado |
-| MS Usuarios | Autenticación JWT, perfiles financieros | 📋 Q3 2026 |
+| MS Productos Crediticios (`finance-bro-api`) | Catálogo, ingesta, simulación, comparación | ✅ Implementado |
+| MS Usuarios (`finance-bro-users-api`) | Autenticación JWT (registro / login / me) | ✅ Implementado |
 | MS Notificaciones | Email, push, alertas de tasas | 📋 Q4 2026 |
 | MS Configuración | UVR, SMMLV, tasa de usura, feature flags | 📋 Futuro |
+
+### Servicios de soporte (pipeline de scraping)
+
+| Servicio | Puerto | Responsabilidad |
+|---|---|---|
+| `playwright-pdf-service` | 3001 (local) | Extracción de PDFs con Chromium real, evadiendo protección anti-bot |
+| `tunnel-proxy` | 3002 | Unifica API NestJS (`/api/*`) y Playwright PDF (`/pdf/*`) bajo un único túnel Cloudflare hacia n8n Cloud |
 
 ---
 
@@ -137,18 +158,51 @@ npm run start:dev
 
 ---
 
-## Componente 2: Frontend React
+## Componente 2: MS Usuarios (Autenticación)
+
+Microservicio independiente (`finance-bro-users-api`, puerto **3001**) con su propia base de datos (`financebro_users_db`). Maneja registro, login y sesión vía JWT, completamente aislado del MS de Productos.
+
+### Endpoints (`/api/auth`)
+
+- `POST /registro` — Crear cuenta de usuario
+- `POST /login` — Autenticar y emitir JWT
+- `GET /me` — Obtener perfil del usuario autenticado (requiere `Authorization: Bearer <token>`)
+
+### Stack
+
+- NestJS 11 + TypeScript + TypeORM 0.3
+- PostgreSQL (`financebro_users_db`) — base de datos separada del catálogo
+- JWT con Passport (strategies + guards) — `JWT_SECRET` / `JWT_EXPIRATION`
+- Health check (`/health`)
+
+### Quick Start
+
+```bash
+cd finance-bro-users-api
+npm install
+cp .env.example .env
+npm run start:dev
+# API: http://localhost:3001
+```
+
+---
+
+## Componente 3: Frontend React
 
 Interfaz de comparación con 4 tipos de crédito, simulador de cuotas por producto y comparación multi-producto.
 
-### Comparadores disponibles
+### Rutas
 
-| Tipo | Ruta | Productos en DB |
+| Página | Ruta | Productos en DB |
 |---|---|---|
-| Crédito Hipotecario | `/hipotecario` | 55+ |
-| Crédito de Vehículo | `/vehiculo` | ~20 |
-| Crédito Educativo | `/educativo` | ~15 |
-| Crédito de Libre Inversión | `/libre-inversion` | 21 |
+| Inicio | `/` | — |
+| Hub de créditos | `/creditos` | — |
+| Crédito Hipotecario | `/creditos-hipotecarios` | 55+ |
+| Crédito de Vehículo | `/creditos-vehiculo` | ~20 |
+| Crédito Educativo | `/creditos-educativos` | ~15 |
+| Crédito de Libre Inversión | `/creditos-libre-inversion` | 21 |
+| Login | `/login` | — |
+| Registro | `/registro` | — |
 
 ### Funcionalidades por card
 
@@ -197,7 +251,7 @@ npm run dev
 
 ---
 
-## Componente 3: Automatización n8n
+## Componente 4: Automatización n8n
 
 Dos workflows automatizados para mantener los datos actualizados.
 
@@ -242,14 +296,18 @@ docker compose exec backend npm run migration:run
 docker compose exec backend npm run seed:catalogs
 ```
 
-### Servicios
+### Servicios (docker-compose)
 
 | Contenedor | Puerto | Descripción |
 |---|---|---|
-| `financebro-backend` | 3000 | API NestJS + Swagger |
+| `financebro-backend` | 3000 | MS Productos — API NestJS + Swagger |
+| `financebro-users-api` | 3001 | MS Usuarios — Autenticación JWT |
 | `financebro-frontend` | 5173 | React + Vite (dev) |
-| `financebro-postgres` | 5432 | PostgreSQL 16 |
+| `financebro-postgres` | 5432 | PostgreSQL 16 (`financebro_db` + `financebro_users_db`) |
 | `financebro-redis` | 6379 | Redis 7 |
+| `financebro-pgadmin` | 5050 | Gestión de BD (opcional) |
+
+> **Pipeline de scraping** (`playwright-pdf-service` + `tunnel-proxy`) se ejecuta **localmente** —fuera de docker-compose— porque expone un túnel Cloudflare hacia n8n Cloud. Ver `tunnel-proxy/README.md`.
 
 ---
 
@@ -483,7 +541,7 @@ Proyecto-FinanceBro/
 │   ├── cd.yml                        # Build + push Docker Hub + deploy EC2
 │   └── release.yml                   # GitHub releases automáticos
 │
-├── finance-bro-api/                  # Backend NestJS
+├── finance-bro-api/                  # MS Productos — Backend NestJS (:3000)
 │   └── src/
 │       ├── catalogos/                # Entidades, tipos, denominaciones
 │       ├── productos/                # Productos crediticios (8 endpoints)
@@ -491,7 +549,13 @@ Proyecto-FinanceBro/
 │       ├── simulaciones/             # PMT + calcular-lote
 │       └── health/                   # Health checks
 │
-├── finance-bro-web/                  # Frontend React
+├── finance-bro-users-api/            # MS Usuarios — Auth NestJS (:3001)
+│   └── src/
+│       ├── auth/                     # registro / login / me (JWT, guards, strategies)
+│       ├── users/                    # Entidad y servicio de usuarios
+│       └── health/                   # Health checks
+│
+├── finance-bro-web/                  # Frontend React (:5173)
 │   └── src/
 │       ├── features/
 │       │   ├── mortgage-loans/       # BankCard + BankComparison
@@ -499,13 +563,20 @@ Proyecto-FinanceBro/
 │       │   ├── education-credits/    # EducationCard + EducationComparison
 │       │   ├── inversion-credits/    # InversionCard + InversionComparison
 │       │   └── shared/common/        # SimulationSheet, ComparisonFloatingBar, ComparisonDialog
+│       ├── pages/                    # Index, Credits, Login, Registro, comparadores
 │       └── lib/
 │           ├── api.ts                # HTTP client centralizado
 │           └── query-keys.ts         # TanStack Query key factory + types
 │
+├── playwright-pdf-service/           # Extracción de PDFs anti-bot (Express + Chromium)
+├── tunnel-proxy/                     # Reverse proxy Cloudflare (API + PDF) → n8n (:3002)
+│
 ├── n8n/                              # Workflows de automatización
 │   ├── TextScrapperTool.json         # Scraping diario
 │   └── PDFUrlUpdater.json            # Actualización PDFs (Gemini AI)
+│
+├── scripts/                          # Utilidades (convert-to-webp.js, etc.)
+├── docs/                             # Guías: Docker, CI/CD, CHANGELOG, costos de despliegue
 │
 ├── docker-compose.yml                # Stack de desarrollo
 ├── docker-compose.prod.yml           # Stack de producción
@@ -532,15 +603,18 @@ Proyecto-FinanceBro/
 - [x] n8n TextScrapperTool (scraping diario) + PDFUrlUpdater (Gemini AI)
 
 ### Q2 2026
+- [x] MS Usuarios — Autenticación JWT (registro / login / me) + páginas frontend
+- [x] Pipeline anti-bot (Playwright PDF Service + Tunnel Proxy Cloudflare)
+- [ ] Migración de PostgreSQL a Supabase (Postgres gestionado) — 🚧 en progreso
 - [ ] Sistema de caché Redis en endpoints frecuentes
-- [ ] Despliegue en producción (AWS EC2)
+- [ ] Despliegue en producción (AWS / Hostinger)
 - [ ] Créditos personales y automotriz (scraping + comparador)
 - [ ] Tests unitarios backend y frontend
 - [ ] Monitoreo con Prometheus + Grafana
 
 ### Q3 2026
-- [ ] Autenticación de usuarios (JWT + refresh tokens)
 - [ ] Dashboard de usuario (favoritos, historial de simulaciones)
+- [ ] Perfiles financieros (ingresos, capacidad de endeudamiento)
 - [ ] Tarjetas de crédito y seguros
 - [ ] Sistema de alertas de cambios de tasas
 
@@ -555,7 +629,7 @@ Proyecto-FinanceBro/
 ## Variables de Entorno
 
 ```bash
-# Backend (finance-bro-api/.env)
+# MS Productos (finance-bro-api/.env)
 DATABASE_HOST=localhost        # "postgres" en Docker
 DATABASE_PORT=5432
 DATABASE_USER=financebro
@@ -565,7 +639,16 @@ REDIS_HOST=localhost           # "redis" en Docker
 REDIS_PORT=6379
 PORT=3000
 N8N_API_KEY=tu_clave_secreta
+
+# MS Usuarios (finance-bro-users-api/.env)
+DATABASE_HOST=localhost        # "postgres" en Docker
+DATABASE_PORT=5432
+DATABASE_USER=financebro
+DATABASE_PASSWORD=password123
+DATABASE_NAME=financebro_users_db
+PORT=3001
 JWT_SECRET=min_32_caracteres
+JWT_EXPIRATION=7d
 
 # Frontend (finance-bro-web/.env)
 VITE_API_URL=http://localhost:3000
@@ -575,13 +658,15 @@ VITE_API_URL=http://localhost:3000
 
 ## Links
 
-- **Swagger UI**: http://localhost:3000/api/docs
-- **Health Check**: http://localhost:3000/health
+- **Swagger UI** (MS Productos): http://localhost:3000/api/docs
+- **Health Check** (MS Productos): http://localhost:3000/health
+- **MS Usuarios** (Auth): http://localhost:3001/api/auth
 - **Google Sheets** (respaldo): https://docs.google.com/spreadsheets/d/1yUR0Tow3yrbSemyzmsqDY4VoF113wrxfCwVDhSTOsoM/edit?usp=sharing
-- **Guía Docker**: [DOCKER_DEPLOYMENT_GUIDE.md](DOCKER_DEPLOYMENT_GUIDE.md)
-- **Guía AWS EC2**: [AWS_EC2_DEPLOYMENT.md](AWS_EC2_DEPLOYMENT.md)
-- **Guía CI/CD**: [CICD_QUICKSTART.md](CICD_QUICKSTART.md)
+- **Guía Docker**: [docs/DOCKER_DEPLOYMENT_GUIDE.md](docs/DOCKER_DEPLOYMENT_GUIDE.md)
+- **Guía CI/CD**: [docs/CICD_QUICKSTART.md](docs/CICD_QUICKSTART.md)
+- **Changelog**: [docs/CHANGELOG.md](docs/CHANGELOG.md)
+- **Costos de despliegue**: [docs/Costos_Despliegue_FinanceBro.xlsx](docs/Costos_Despliegue_FinanceBro.xlsx)
 
 ---
 
-**Versión**: v1.2.0 | **Última actualización**: Abril 2026
+**Versión**: v1.3.0 | **Última actualización**: Junio 2026
