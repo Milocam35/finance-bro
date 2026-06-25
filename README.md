@@ -662,6 +662,7 @@ VITE_API_URL=http://localhost:3000
 - **Health Check** (MS Productos): http://localhost:3000/health
 - **MS Usuarios** (Auth): http://localhost:3001/api/auth
 - **Google Sheets** (respaldo): https://docs.google.com/spreadsheets/d/1yUR0Tow3yrbSemyzmsqDY4VoF113wrxfCwVDhSTOsoM/edit?usp=sharing
+- **Guía de Despliegue (Hostinger VPS + Supabase + Playwright local)**: [docs/HOSTINGER_DEPLOYMENT.md](docs/HOSTINGER_DEPLOYMENT.md)
 - **Guía Docker**: [docs/DOCKER_DEPLOYMENT_GUIDE.md](docs/DOCKER_DEPLOYMENT_GUIDE.md)
 - **Guía CI/CD**: [docs/CICD_QUICKSTART.md](docs/CICD_QUICKSTART.md)
 - **Changelog**: [docs/CHANGELOG.md](docs/CHANGELOG.md)
