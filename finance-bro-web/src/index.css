@@ -282,8 +282,36 @@
   }
   .animate-wave-slow {
     animation: wave-drift-left 14s linear infinite;
+    will-change: transform;
   }
   .animate-wave-fast {
     animation: wave-drift-right 9s linear infinite;
+    will-change: transform;
+  }
+
+  /* ── Bank card float (replaces per-item Framer Motion) ───── */
+  @keyframes float-bank {
+    0%, 100% { transform: translateY(0px); }
+    50%       { transform: translateY(-6px); }
+  }
+
+  /* ── Features progress bar ────────────────────────────────── */
+  @keyframes progress-fill {
+    from { width: 0%; }
+    to   { width: 100%; }
+  }
+
+  /* ── Geometric accent floats ──────────────────────────────── */
+  @keyframes float-accent-a {
+    0%, 100% { transform: translateY(0px) rotate(0deg); opacity: 0.6; }
+    50%       { transform: translateY(-14px) rotate(5deg); opacity: 1; }
+  }
+  @keyframes float-accent-b {
+    0%, 100% { transform: translateY(0px); }
+    50%       { transform: translateY(18px); }
+  }
+  @keyframes float-accent-c {
+    0%, 100% { transform: translateY(0px); opacity: 0.4; }
+    50%       { transform: translateY(-10px); opacity: 0.8; }
   }
 }

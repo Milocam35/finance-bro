@@ -11,15 +11,15 @@ export default defineConfig(({ mode }) => ({
     allowedHosts: "all",
     proxy: {
       "/api": {
-        target: process.env.VITE_API_URL || "http://localhost:3000",
+        target: process.env.BACKEND_URL || process.env.VITE_API_URL || "http://localhost:3000",
         changeOrigin: true,
       },
       "/health": {
-        target: process.env.VITE_API_URL || "http://localhost:3000",
+        target: process.env.BACKEND_URL || process.env.VITE_API_URL || "http://localhost:3000",
         changeOrigin: true,
       },
       "/auth": {
-        target: process.env.VITE_USERS_API_URL || "http://localhost:3001",
+        target: process.env.USERS_API_URL || process.env.VITE_USERS_API_URL || "http://localhost:3001",
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/auth/, ""),
       },

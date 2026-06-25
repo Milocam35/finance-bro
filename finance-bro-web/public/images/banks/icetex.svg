@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 36" width="120" height="36">
+  <rect width="120" height="36" fill="transparent" rx="4"/>
+  <text x="60" y="22" 
+        font-family="Arial,sans-serif" font-size="14" font-weight="700"
+        fill="#003876" text-anchor="middle" dominant-baseline="middle">ICETEX</text>
+</svg>

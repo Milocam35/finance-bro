@@ -108,6 +108,8 @@ services:
     environment:
       NODE_ENV: development
       VITE_API_URL: ${VITE_API_URL}
+      BACKEND_URL: http://backend:3000
+      USERS_API_URL: http://users-api:3001
     ports:
       - "${FRONTEND_PORT:-5174}:5173"
     volumes:

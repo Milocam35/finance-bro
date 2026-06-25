@@ -92,7 +92,6 @@ export function Features() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState(1);
   const [paused, setPaused] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set());
 
   /* preload adjacent images */
@@ -110,21 +109,6 @@ export function Features() {
       }
     });
   }, [currentIndex]);
-
-  /* progress bar rAF */
-  useEffect(() => {
-    if (paused) return;
-    setProgress(0);
-    const start = performance.now();
-    let raf: number;
-    const tick = (now: number) => {
-      const elapsed = now - start;
-      setProgress(Math.min(elapsed / AUTO_ADVANCE_MS, 1));
-      if (elapsed < AUTO_ADVANCE_MS) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [currentIndex, paused]);
 
   const goTo = (index: number) => {
     setDirection(index > currentIndex ? 1 : -1);
@@ -205,37 +189,19 @@ export function Features() {
         </div>
       </div>
 
-      {/* ── Floating mesh blobs ── */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <motion.div
+      {/* ── Static mesh blobs — filter:blur cached, no JS animation ── */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
+        <div
           className="absolute -top-[20%] left-[10%] w-[60%] h-[60%] rounded-full"
-          animate={reduced ? {} : { y: [0, -28, 0], x: [0, 12, 0] }}
-          transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
-          style={{
-            background: "radial-gradient(circle, #303AE4 0%, transparent 65%)",
-            filter: "blur(90px)",
-            opacity: 0.18,
-          }}
+          style={{ background: "radial-gradient(circle, #303AE4 0%, transparent 65%)", filter: "blur(90px)", opacity: 0.18 }}
         />
-        <motion.div
+        <div
           className="absolute top-[30%] -right-[10%] w-[45%] h-[55%] rounded-full"
-          animate={reduced ? {} : { y: [0, 22, 0], x: [0, -16, 0] }}
-          transition={{ duration: 18, repeat: Infinity, ease: "easeInOut", delay: 3 }}
-          style={{
-            background: "radial-gradient(circle, #303AE4 0%, transparent 70%)",
-            filter: "blur(80px)",
-            opacity: 0.12,
-          }}
+          style={{ background: "radial-gradient(circle, #303AE4 0%, transparent 70%)", filter: "blur(80px)", opacity: 0.12 }}
         />
-        <motion.div
+        <div
           className="absolute -bottom-[10%] left-[30%] w-[50%] h-[50%] rounded-full"
-          animate={reduced ? {} : { y: [0, -18, 0], x: [0, 20, 0] }}
-          transition={{ duration: 20, repeat: Infinity, ease: "easeInOut", delay: 6 }}
-          style={{
-            background: "radial-gradient(circle, #FBB347 0%, transparent 65%)",
-            filter: "blur(100px)",
-            opacity: 0.08,
-          }}
+          style={{ background: "radial-gradient(circle, #FBB347 0%, transparent 65%)", filter: "blur(100px)", opacity: 0.08 }}
         />
       </div>
 
@@ -421,12 +387,20 @@ export function Features() {
                 boxShadow: "0 32px 64px -16px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06)",
               }}
             >
-              {/* Progress bar */}
+              {/* Progress bar — CSS animation, zero JS overhead */}
               {!reduced && (
                 <div className="absolute top-0 left-0 right-0 z-30 h-[2px] bg-white/10">
-                  <motion.div
+                  <div
+                    key={currentIndex}
                     className="h-full bg-[#303AE4]"
-                    style={{ width: `${progress * 100}%` }}
+                    style={{
+                      animationName: "progress-fill",
+                      animationDuration: `${AUTO_ADVANCE_MS}ms`,
+                      animationTimingFunction: "linear",
+                      animationFillMode: "forwards",
+                      animationPlayState: paused ? "paused" : "running",
+                      willChange: "width",
+                    }}
                   />
                 </div>
               )}

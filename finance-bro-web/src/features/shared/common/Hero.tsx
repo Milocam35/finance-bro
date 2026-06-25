@@ -3,6 +3,7 @@ import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "@/components/theme-provider";
+import { memo } from "react";
 
 const EASE_OUT_EXPO = [0.16, 1, 0.3, 1] as const;
 const EASE_OUT_QUINT = [0.22, 1, 0.36, 1] as const;
@@ -26,28 +27,21 @@ const banks = [
   { name: "IRIS", logo: "/images/banks/iris.png" },
 ];
 
-function BankGrid({ isDark }: { isDark: boolean }) {
+const BankGrid = memo(function BankGrid({ isDark }: { isDark: boolean }) {
   const reduced = useReducedMotion();
 
   return (
     <div className="grid grid-cols-5 gap-1.5 sm:gap-3">
       {banks.map((bank, i) => (
-        <motion.div
+        <div
           key={bank.name}
-          animate={reduced ? {} : { y: [0, -6, 0] }}
-          transition={{
-            duration: 2.8 + i * 0.22,
-            repeat: Infinity,
-            ease: "easeInOut",
-            delay: i * 0.18,
-          }}
           className="flex items-center justify-center h-[48px] sm:h-[60px] rounded-xl overflow-hidden"
           style={{
             background: isDark ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.9)",
             border: isDark ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(0,0,0,0.07)",
-            boxShadow: isDark
-              ? "0 6px 20px rgba(0,0,0,0.4)"
-              : "0 3px 12px rgba(48,58,228,0.08)",
+            boxShadow: isDark ? "0 6px 20px rgba(0,0,0,0.4)" : "0 3px 12px rgba(48,58,228,0.08)",
+            animation: reduced ? "none" : `float-bank ${2.8 + i * 0.22}s ease-in-out ${i * 0.18}s infinite`,
+            willChange: reduced ? "auto" : "transform",
           }}
         >
           <img
@@ -70,11 +64,11 @@ function BankGrid({ isDark }: { isDark: boolean }) {
               }
             }}
           />
-        </motion.div>
+        </div>
       ))}
     </div>
   );
-}
+});
 
 export function Hero() {
   const navigate = useNavigate();
@@ -126,28 +120,30 @@ export function Hero() {
         </div>
       </div>
 
-      {/* ── Floating geometric accents ── */}
-      <motion.div
-        animate={reduced ? {} : { y: [0, -14, 0], rotate: [0, 5, 0], opacity: [0.6, 1, 0.6] }}
-        transition={{ duration: 6.5, repeat: Infinity, ease: "easeInOut" }}
+      {/* ── Floating geometric accents (CSS animations — no Framer overhead) ── */}
+      <div
         className="absolute top-1/4 right-[14%] w-14 h-14 rounded-2xl hidden lg:block"
         style={{
           border: isDark ? "1px solid rgba(255,255,255,0.1)" : "1px solid hsl(var(--border))",
           backgroundColor: isDark ? "rgba(255,255,255,0.03)" : "rgba(48,58,228,0.04)",
+          animation: reduced ? "none" : "float-accent-a 6.5s ease-in-out infinite",
+          willChange: reduced ? "auto" : "transform",
         }}
       />
-      <motion.div
-        animate={reduced ? {} : { y: [0, 18, 0], rotate: [0, -5, 0], opacity: [0.5, 0.9, 0.5] }}
-        transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut", delay: 1.2 }}
+      <div
         className="absolute bottom-1/3 left-[7%] w-10 h-10 rounded-full hidden lg:block border border-brand-sunset/20 bg-brand-sunset/[0.05]"
+        style={{
+          animation: reduced ? "none" : "float-accent-b 5.5s ease-in-out 1.2s infinite",
+          willChange: reduced ? "auto" : "transform",
+        }}
       />
-      <motion.div
-        animate={reduced ? {} : { y: [0, -10, 0], opacity: [0.4, 0.8, 0.4] }}
-        transition={{ duration: 7, repeat: Infinity, ease: "easeInOut", delay: 2.5 }}
+      <div
         className="absolute top-[38%] left-[11%] w-7 h-7 rounded-lg hidden lg:block"
         style={{
           border: isDark ? "1px solid rgba(255,255,255,0.1)" : "1px solid hsl(var(--border))",
           backgroundColor: isDark ? "rgba(255,255,255,0.02)" : "rgba(48,58,228,0.03)",
+          animation: reduced ? "none" : "float-accent-c 7s ease-in-out 2.5s infinite",
+          willChange: reduced ? "auto" : "transform",
         }}
       />
 
