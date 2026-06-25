@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { UsersModule } from './users/users.module.js';
 import { HealthModule } from './health/health.module.js';
 import { Usuario } from './users/entities/usuario.entity.js';
+import { getDbConnectionOptions } from './database/db-config.js';
 
 @Module({
   imports: [
@@ -18,11 +19,9 @@ import { Usuario } from './users/entities/usuario.entity.js';
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
-        host: configService.get('database.host'),
-        port: configService.get('database.port'),
-        username: configService.get('database.username'),
-        password: configService.get('database.password'),
-        database: configService.get('database.database'),
+        // Usa DATABASE_URL (pooler de transacción 6543 en Supabase) si está
+        // definida; si no, cae a las variables DATABASE_* (Docker local).
+        ...getDbConnectionOptions(),
         entities: [Usuario],
         synchronize: configService.get('database.synchronize'),
         logging: configService.get('database.logging'),
