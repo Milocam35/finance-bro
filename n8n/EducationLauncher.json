@@ -1,0 +1,126 @@
+{
+  "name": "EducationLauncher",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "el-manual-001",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 1,3,5"
+            }
+          ]
+        }
+      },
+      "id": "el-schedule-001",
+      "name": "Mon-Wed-Fri 8AM Bogota",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -400,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    product_type: 'educativo',\n    links_sheet: 'LinksEducativo',\n    data_sheet: 'DataEducativo',\n    needs_uvr: false,\n    normalization_rules: 'education',\n    credit_type: 'Crédito educativo',\n    exclude_terms: ['hipotecario', 'vivienda', 'vehículo', 'leasing habitacional', 'tarjeta de crédito', 'libre inversión'],\n    keywords: [\n      'tasa', 'tasas', 'crédito', 'credito', 'educativo', 'educación', 'educacion',\n      'universidad', 'pregrado', 'posgrado', 'maestría', 'maestria', 'doctorado',\n      'especialización', 'especializacion', 'ICETEX', 'icetex',\n      'semestre', 'matrícula', 'matricula', 'estudio', 'estudios',\n      'técnico', 'tecnico', 'tecnológico', 'tecnologico',\n      'interés', 'interes', 'plazo', 'cuota', 'monto', 'financiación', 'financiacion',\n      'ea', 'efectivo anual', 'periodo de gracia', 'gracia',\n      'desde', 'hasta', 'fija', 'variable', 'mensual',\n      'subsidio', 'beca', 'condonable'\n    ],\n    priority_keywords: [\n      'crédito educativo', 'credito educativo', 'educación', 'educacion',\n      'universidad', 'pregrado', 'posgrado', 'maestría', 'maestria',\n      'doctorado', 'especialización', 'especializacion',\n      'ICETEX', 'icetex', 'semestre', 'matrícula', 'matricula',\n      'crédito de estudio', 'credito de estudio',\n      'técnico', 'tecnico', 'tecnológico', 'tecnologico',\n      'periodo de gracia', 'gracia', 'condonable'\n    ],\n    pdf_prompt: 'Extrae SOLO información de tasas de CRÉDITO EDUCATIVO en Colombia de este PDF bancario.\\n\\nEXTRAE:\\n- Tasas E.A. (Efectivo Anual) para créditos educativos\\n- Diferencia entre pregrado y posgrado (maestría, doctorado, especialización)\\n- Diferencia entre educación técnica/tecnológica y universitaria (si aplica)\\n- Plazos, montos, condiciones, requisitos\\n- Periodo de gracia (si existe)\\n- Porcentaje de financiación de la matrícula\\n\\nIGNORA COMPLETAMENTE:\\n- Créditos hipotecarios / de vivienda\\n- Créditos de vehículo\\n- Leasing habitacional\\n- Créditos de consumo o libre inversión\\n- Tarjetas de crédito\\n- Información legal/regulatoria genérica\\n\\nFORMATO: Devuelve tablas en Markdown con columnas:\\n| Nivel Educativo | Modalidad | Tasa E.A. | Plazo Máx | Monto Máx | Financiación | Periodo de Gracia |\\n\\nSi hay condiciones, requisitos o beneficios adicionales, inclúyelos debajo de cada tabla.',\n    user_prompt_suffix: 'Extrae TODOS los créditos EDUCATIVOS disponibles.\\nRecuerda:\\n- Cada combinación de nivel educativo (Pregrado/Posgrado/Maestría/Doctorado/Técnico/Tecnológico) + modalidad = un objeto separado\\n- SOLO créditos educativos (NO vivienda, NO vehículo, NO consumo, NO libre inversión)\\n- Incluye periodo de gracia si existe\\n- Responde SOLO con el array JSON',\n    system_prompt: 'Eres un extractor de datos estructurados especializado EXCLUSIVAMENTE en tasas de créditos EDUCATIVOS en Colombia.\\n\\nRESPONDE ÚNICAMENTE con un array JSON válido. Sin explicaciones, sin markdown, sin ```.\\n\\n## REGLAS ESTRICTAS DE EXTRACCIÓN\\n\\n1. SOLO créditos EDUCATIVOS (universidad, técnico, tecnológico, posgrado, maestría, doctorado)\\n2. EXCLUYE SIEMPRE: créditos hipotecarios, vivienda, vehículo, leasing habitacional, consumo, libre inversión, libranza, tarjetas de crédito\\n3. Cada combinación ÚNICA de nivel_educativo + modalidad = un objeto JSON separado\\n4. Las tasas DEBEN ser E.A. (Efectivo Anual)\\n5. Si un campo no tiene información, usa null (NUNCA string vacío \"\")\\n6. Si hay rango de tasas (\"desde X% hasta Y%\"), usa rate_range con min y max\\n\\n## VALORES EXACTOS PERMITIDOS (usa EXACTAMENTE estos strings)\\n\\n- credit_type: \"Crédito educativo\" (SIEMPRE este valor exacto)\\n- education_level: \"Pregrado\" | \"Posgrado\" | \"Maestría\" | \"Doctorado\" | \"Técnico\" | \"Tecnológico\" | \"Todos\"\\n  * \"Pregrado\" = carreras universitarias de 4-5 años\\n  * \"Posgrado\" = especializaciones\\n  * \"Maestría\" = maestrías\\n  * \"Doctorado\" = doctorados\\n  * \"Técnico\" = programas técnicos (2 años)\\n  * \"Tecnológico\" = programas tecnológicos (3 años)\\n  * \"Todos\" = cuando NO hay diferenciación por nivel\\n- modality: \"Presencial\" | \"Virtual\" | \"Ambos\" | \"Todos\"\\n- rate_denomination: \"Pesos\" (SIEMPRE para educativos)\\n- rate_type: \"Tasa efectiva anual\" (SIEMPRE)\\n- payment_type: \"Cuota fija\" | \"Cuota variable\" | null\\n\\n## FORMATO DE TASA\\n- Formato: \"X.XX%\" (ejemplo: \"12.50%\")\\n- SIEMPRE usa punto decimal, NUNCA coma\\n- SIEMPRE incluye el símbolo %\\n\\n## ESQUEMA JSON\\n{\\n  \"bank\": \"string (nombre oficial del banco o entidad)\",\\n  \"credit_type\": \"Crédito educativo\",\\n  \"education_level\": \"Pregrado\" | \"Posgrado\" | \"Maestría\" | \"Doctorado\" | \"Técnico\" | \"Tecnológico\" | \"Todos\",\\n  \"modality\": \"Presencial\" | \"Virtual\" | \"Ambos\" | \"Todos\",\\n  \"rate_denomination\": \"Pesos\",\\n  \"rate_type\": \"Tasa efectiva anual\",\\n  \"rate\": \"string (ej: 12.50%)\",\\n  \"rate_range\": {\"min\": \"string\", \"max\": \"string\"} | null,\\n  \"description\": \"string corta\",\\n  \"conditions\": [\"string\", ...] | null,\\n  \"requirements\": [\"string\", ...] | null,\\n  \"min_amount\": \"string\" | null,\\n  \"max_amount\": \"string\" | null,\\n  \"max_term\": \"string (ej: 10 años)\" | null,\\n  \"payment_type\": \"Cuota fija\" | \"Cuota variable\" | null,\\n  \"additional_info\": {\\n    \"periodo_gracia\": \"string (ej: 6 meses, Mientras estudia)\" | null,\\n    \"financiacion_matricula\": \"string (ej: 100%)\" | null,\\n    \"descuento_nomina\": \"string\" | null,\\n    \"convenio_icetex\": \"string\" | null\\n  } | null\\n}\\n\\n## EJEMPLO DE RESPUESTA CORRECTA\\n\\n[\\n  {\\n    \"bank\": \"Bancolombia\",\\n    \"credit_type\": \"Crédito educativo\",\\n    \"education_level\": \"Pregrado\",\\n    \"modality\": \"Presencial\",\\n    \"rate_denomination\": \"Pesos\",\\n    \"rate_type\": \"Tasa efectiva anual\",\\n    \"rate\": \"14.50%\",\\n    \"rate_range\": null,\\n    \"description\": \"Crédito educativo para pregrado presencial\",\\n    \"conditions\": [\"Financiación hasta el 100% de la matrícula\", \"Plazo hasta 10 años\"],\\n    \"requirements\": [\"Codeudor requerido\", \"Carta de admisión\"],\\n    \"min_amount\": null,\\n    \"max_amount\": \"$50,000,000 por semestre\",\\n    \"max_term\": \"10 años\",\\n    \"payment_type\": \"Cuota fija\",\\n    \"additional_info\": {\\n      \"periodo_gracia\": \"Mientras estudia + 6 meses\",\\n      \"financiacion_matricula\": \"100%\",\\n      \"descuento_nomina\": null,\\n      \"convenio_icetex\": null\\n    }\\n  }\\n]'\n  }\n}];\n"
+      },
+      "id": "el-config-001",
+      "name": "Set Education Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -96,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sfTkRs6dWi3LDsUc",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "id": "el-execute-001",
+      "name": "Run ScrapingEngine",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        208,
+        112
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Education Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mon-Wed-Fri 8AM Bogota": {
+      "main": [
+        [
+          {
+            "node": "Set Education Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Education Config": {
+      "main": [
+        [
+          {
+            "node": "Run ScrapingEngine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "97097d73-da27-4f50-b54e-161084d57747",
+  "meta": {
+    "instanceId": "1618e2f459f31c8fc5b2c8230db6ae5636ce6f0cb05a8124de87b1bf1e2d6588"
+  },
+  "id": "RWSW7GzKnw3Skrte",
+  "tags": []
+}
