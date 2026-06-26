@@ -30,6 +30,39 @@ Servicios en el VPS (`docker-compose.prod.yml`): `caddy`, `frontend`, `backend`,
 
 ---
 
+## 🧪 Modo TESTING por IP (sin dominio) — empieza por aquí si aún no compras dominio
+
+Para esta fase puedes correr **todo el stack en el VPS y probarlo por la IP**, sin dominio ni HTTPS. La DB sigue siendo la real (Supabase).
+
+**Flujo:** haz **Paso 1** (VPS), luego **Paso 2** (clona + `.env`, pero pon `VPS_IP=<ip_del_vps>`; puedes dejar `DOMAIN`/`ACME_EMAIL` sin tocar), y arranca con el override de testing — **omites Paso 0 (dominio), el Caddy/HTTPS y el Named Tunnel**:
+
+```bash
+# Abre los puertos en el firewall
+ufw allow 80 && ufw allow 5678        # (+ 3000 3001 si quieres acceso directo)
+
+# Levanta el stack SIN Caddy (no se incluye en la lista de servicios)
+docker compose -f docker-compose.prod.yml -f docker-compose.testing.yml \
+  up -d --build backend users-api frontend redis n8n n8n-postgres
+
+docker compose -f docker-compose.prod.yml -f docker-compose.testing.yml ps
+```
+
+**Accesos:**
+- App: `http://IP_DEL_VPS`
+- Swagger: `http://IP_DEL_VPS/api/docs`
+- n8n: `http://IP_DEL_VPS:5678`
+
+**Playwright local** (para no quedarte sin la parte de PDFs): usa un **quick tunnel** efímero en tu máquina (no necesita dominio):
+```powershell
+cd playwright-pdf-service; $env:API_KEY="<...>"; npm start          # terminal 1
+cloudflared tunnel --url http://localhost:3001                       # terminal 2
+```
+Copia la URL `https://xxxx.trycloudflare.com` que imprime y ponla en `PDF_SERVICE_URL` del `.env`, luego `docker compose ... up -d n8n` para recargar. ⚠️ Esa URL **cambia en cada reinicio** del tunnel.
+
+> Cuando estés listo para el lanzamiento real (HTTPS + túnel estable), compra el dominio y sigue los **Pasos 0, 3, 4** con `docker-compose.prod.yml` solo (con Caddy).
+
+---
+
 ## Paso 0 — Dominio + Cloudflare
 
 1. Compra el dominio (ej. `financebro.co`).
