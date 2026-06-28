@@ -1,5 +1,6 @@
 import { DataSource } from 'typeorm';
 import { config } from 'dotenv';
+import { getDbConnectionOptions } from './db-config';
 
 // Cargar variables de entorno
 config();
@@ -22,13 +23,12 @@ import { RequisitoProducto } from '../productos/entities/requisito-producto.enti
 import { BeneficioProducto } from '../productos/entities/beneficio-producto.entity';
 import { EjecucionScraping } from '../productos/entities/ejecucion-scraping.entity';
 
+// Para migraciones usa preferentemente DATABASE_MIGRATION_URL (pooler de sesión
+// 5432 / conexión directa). Si no existe, cae a DATABASE_URL y luego a las
+// variables discretas DATABASE_*.
 export const AppDataSource = new DataSource({
   type: 'postgres',
-  host: process.env.DATABASE_HOST || 'localhost',
-  port: parseInt(process.env.DATABASE_PORT || '5432', 10),
-  username: process.env.DATABASE_USER || 'financebro',
-  password: process.env.DATABASE_PASSWORD || 'password123',
-  database: process.env.DATABASE_NAME || 'financebro_db',
+  ...getDbConnectionOptions(process.env.DATABASE_MIGRATION_URL),
   entities: [
     // Catálogos
     EntidadFinanciera,

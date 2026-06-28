@@ -1,0 +1,1760 @@
+{
+  "name": "ScrapingEngine",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567001",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -1008,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $input.first().json;\n\n// Endpoints via $env: API_URL (nube) / PDF_SERVICE_URL (Playwright local)\nconfig.api_url = $env.API_URL || 'http://localhost:3000';\nconfig.pdf_url = $env.PDF_SERVICE_URL || 'http://localhost:3001';\nconfig.scraperapi_key = $env.SCRAPERAPI_KEY || '';\nconfig.playwright_api_key = $env.PLAYWRIGHT_API_KEY || '';\nconfig.nestjs_api_key = $env.N8N_API_KEY || '';\n\nconsole.log('ScrapingEngine started for product: ' + (config.product_type || 'unknown'));\nconsole.log('API: ' + config.api_url);\nconsole.log('  API:  ' + config.api_url + '/api/*');\nconsole.log('  PDF:  ' + config.pdf_url + '/extract-*');\nreturn { json: config };"
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567002",
+      "name": "Store Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -800,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1yUR0Tow3yrbSemyzmsqDY4VoF113wrxfCwVDhSTOsoM",
+          "mode": "list",
+          "cachedResultName": "BankScrappedData",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1yUR0Tow3yrbSemyzmsqDY4VoF113wrxfCwVDhSTOsoM/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{ $('Store Config').first().json.links_sheet }}",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567003",
+      "name": "Read Bank URLs",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -608,
+        304
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "rWJE0ntmYwzYmIeB",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst activeBanks = items.filter(item => {\n  const activo = item.json.activo;\n  return activo === true || activo === 'TRUE' || activo === 'true' || activo === 'SI' || activo === 'si' || activo === 'Sí' || activo === 'sí';\n});\nif (activeBanks.length === 0) {\n  throw new Error('No hay bancos activos en la pestaña Links del Google Sheet.');\n}\nconsole.log('Procesando ' + activeBanks.length + ' bancos: ' + activeBanks.map(b => b.json.banco || b.json.url).join(', '));\nreturn activeBanks;"
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567004",
+      "name": "Filter Active Banks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "uvr-check",
+              "leftValue": "={{ $('Store Config').first().json.needs_uvr }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567005",
+      "name": "Needs UVR?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -208,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://suameca.banrep.gov.co/estadisticas-economicas-back/rest/estadisticaEconomicaRestService/consultaInformacionSerie?idSerie=850",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567006",
+      "name": "Fetch UVR from BanRep API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        0,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const apiResponse = $input.first().json;\nif (!apiResponse || !apiResponse.data || !Array.isArray(apiResponse.data)) {\n  return { json: { uvr_actual: null, uvr_anterior: null, fecha_uvr_actual: null, fecha_uvr_anterior: null, variacion_porcentual_uvr: null, uvr_calculo_valido: false, error: 'No se pudo obtener datos de UVR' } };\n}\nconst data = apiResponse.data;\nconst now = new Date();\nconst bogotaOffset = -5 * 60;\nconst bogotaTime = new Date(now.getTime() + (bogotaOffset - now.getTimezoneOffset()) * 60000);\nbogotaTime.setHours(0, 0, 0, 0);\nconst timestampHoy = bogotaTime.getTime();\nconst unAnioEnMs = 365 * 24 * 60 * 60 * 1000;\nconst timestampHaceUnAnio = timestampHoy - unAnioEnMs;\nfunction encontrarValorCercano(datos, targetTimestamp) {\n  let closest = null; let minDiff = Infinity;\n  for (const [ts, valor] of datos) {\n    const diff = Math.abs(ts - targetTimestamp);\n    if (diff < minDiff) { minDiff = diff; closest = { timestamp: ts, valor: valor }; }\n  }\n  return closest;\n}\nconst uvrActualData = encontrarValorCercano(data, timestampHoy);\nconst uvrAnteriorData = encontrarValorCercano(data, timestampHaceUnAnio);\nconst uvrActual = uvrActualData?.valor || null;\nconst uvrAnterior = uvrAnteriorData?.valor || null;\nconst formatDate = (ts) => { if (!ts) return null; const d = new Date(ts); return d.toISOString().split('T')[0]; };\nlet variacionPorcentual = null; let uvrValido = false;\nif (uvrActual && uvrAnterior) { variacionPorcentual = (uvrActual / uvrAnterior) - 1; uvrValido = true; }\nreturn { json: { uvr_actual: uvrActual, uvr_anterior: uvrAnterior, fecha_uvr_actual: formatDate(uvrActualData?.timestamp), fecha_uvr_anterior: formatDate(uvrAnteriorData?.timestamp), variacion_porcentual_uvr: variacionPorcentual, uvr_calculo_valido: uvrValido } };"
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567007",
+      "name": "Parse UVR API Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const bankItems = $('Filter Active Banks').all();\nreturn bankItems;"
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567008",
+      "name": "Restore Bank Items UVR",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const bankItems = $('Filter Active Banks').all();\nreturn bankItems;"
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567009",
+      "name": "Restore Bank Items Direct",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567010",
+      "name": "Process Banks One by One",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 1,
+      "position": [
+        608,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "sv-url",
+              "name": "url",
+              "value": "={{ $json.url.includes(',') ? $json.url.split(',')[0].trim() : $json.url.trim() }}",
+              "type": "string"
+            },
+            {
+              "id": "sv-extra",
+              "name": "extra_urls",
+              "value": "={{ $json.url.includes(',') ? $json.url.split(',').slice(1).map(u => u.trim()).filter(u => u).join(',') : '' }}",
+              "type": "string"
+            },
+            {
+              "id": "sv-tipo",
+              "name": "tipo_producto",
+              "value": "={{ $json.tipo_producto || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "sv-pdf",
+              "name": "pdf_url",
+              "value": "={{ $json.pdf_url || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "sv-haspdf",
+              "name": "has_pdf",
+              "value": "={{ $json.pdf_url && $json.pdf_url.trim() !== '' }}",
+              "type": "string"
+            },
+            {
+              "id": "sv-target",
+              "name": "target_url",
+              "value": "={{ $json.target_url || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "sv-banco",
+              "name": "banco_nombre",
+              "value": "={{ $json.banco || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567011",
+      "name": "Set Bank Variables",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        800,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ap-url",
+              "name": "finalUrl",
+              "value": "={{ $json.url.startsWith('http') ? $json.url : 'https://' + $json.url }}",
+              "type": "string"
+            },
+            {
+              "id": "ap-tipo",
+              "name": "tipo_producto",
+              "value": "={{ $json.tipo_producto }}",
+              "type": "string"
+            },
+            {
+              "id": "ap-pdf",
+              "name": "pdf_url",
+              "value": "={{ $json.pdf_url && $json.pdf_url.trim() !== '' ? ($json.pdf_url.startsWith('http') ? $json.pdf_url : 'https://' + $json.pdf_url) : '' }}",
+              "type": "string"
+            },
+            {
+              "id": "ap-haspdf",
+              "name": "has_pdf",
+              "value": "={{ $json.has_pdf === 'true' || $json.has_pdf === true }}",
+              "type": "boolean"
+            },
+            {
+              "id": "ap-target",
+              "name": "target_url",
+              "value": "={{ $json.target_url && $json.target_url.trim() !== '' ? ($json.target_url.startsWith('http') ? $json.target_url : 'https://' + $json.target_url) : '' }}",
+              "type": "string"
+            },
+            {
+              "id": "ap-banco",
+              "name": "banco_nombre",
+              "value": "={{ $json.banco_nombre }}",
+              "type": "string"
+            },
+            {
+              "id": "ap-extra",
+              "name": "extra_urls",
+              "value": "={{ $json.extra_urls ? $json.extra_urls.split(',').map(u => u.trim()).map(u => u.startsWith('http') ? u : 'https://' + u).join(',') : '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567012",
+      "name": "Add Protocol To Domain",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1008,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.finalUrl }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\n  \"User-Agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\",\n  \"Accept\": \"text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8\",\n  \"Accept-Language\": \"es-ES,es;q=0.9,en;q=0.8\",\n  \"Accept-Encoding\": \"gzip, deflate, br\",\n  \"Connection\": \"keep-alive\",\n  \"Upgrade-Insecure-Requests\": \"1\",\n  \"Sec-Fetch-Dest\": \"document\",\n  \"Sec-Fetch-Mode\": \"navigate\",\n  \"Sec-Fetch-Site\": \"none\",\n  \"Cache-Control\": \"max-age=0\"\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567013",
+      "name": "Extract Page Structure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1200,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "blocked-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567014",
+      "name": "HTML Blocked?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1392,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.scraperapi.com/?api_key={{ $('Store Config').first().json.scraperapi_key }}&url={{ encodeURIComponent($('Add Protocol To Domain').first().json.finalUrl) }}&render=true&country_code=co&premium=true",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\n  \"User-Agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\",\n  \"Accept\": \"text/html,application/xhtml+xml,application/xml;q=0.9\"\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567015",
+      "name": "ScraperAPI Fallback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1616,
+        352
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const cheerio = require('cheerio');\nconst config = $('Store Config').first().json;\nconst KEYWORDS = config.keywords || ['tasa', 'tasas', 'crédito', 'credito', 'plazo', 'cuota', 'monto', 'financiación'];\nconst RATE_REGEX = /\\d+[.,]\\d+\\s*%|E\\.?A\\.?|N\\.?M\\.?V|UVR/i;\nconst HEADERS = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8', 'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8' };\nfunction cleanText(text) { return text.replace(/\\s+/g, ' ').trim(); }\nfunction hasRateData(text) { return RATE_REGEX.test(text); }\nfunction isRelevant(text) { if (!text) return false; if (text.length >= 5 && hasRateData(text)) return true; if (text.length < 10) return false; const lowerText = text.toLowerCase(); return KEYWORDS.some(keyword => lowerText.includes(keyword)); }\nfunction extractFromHtml(htmlStr) { const $ = cheerio.load(htmlStr); $('script, style, noscript, iframe, form').remove(); const tables = []; $('table').each((i, table) => { const tableText = $(table).text(); if (isRelevant(tableText)) { const rows = []; $(table).find('tr').each((j, row) => { const cells = []; $(row).find('td, th').each((k, cell) => { const cellText = cleanText($(cell).text()); if (cellText) cells.push(cellText); }); if (cells.length > 0) rows.push(cells.join(' | ')); }); if (rows.length > 0) tables.push(rows.join('\\n')); } }); const relevantParagraphs = []; const seen = new Set(); $('h1, h2, h3, h4').each((i, heading) => { const headText = cleanText($(heading).text()); if (!headText || headText.length < 3) return; const nextSibling = $(heading).next(); const nextText = nextSibling.length ? cleanText(nextSibling.text()) : ''; if (isRelevant(headText) || isRelevant(nextText) || hasRateData(headText)) { const combined = nextText ? headText + ': ' + nextText : headText; if (!seen.has(combined) && combined.length < 1000) { seen.add(combined); relevantParagraphs.push(combined); } } }); $('[class*=\"card\"], [class*=\"grid\"], [class*=\"rate\"], [class*=\"tasa\"], [class*=\"product\"], section, article').each((i, container) => { const text = cleanText($(container).text()); if (text.length > 15 && text.length < 2000 && hasRateData(text)) { if (!seen.has(text)) { seen.add(text); relevantParagraphs.push(text); } } }); $('p, div, span, li, td, th, h1, h2, h3, h4').each((i, elem) => { const text = cleanText($(elem).text()); if (hasRateData(text) && text.length >= 5 && text.length < 500) { if (!seen.has(text)) { seen.add(text); relevantParagraphs.push(text); } } if (text.length > 20 && text.length < 1000 && isRelevant(text)) { if (!seen.has(text)) { seen.add(text); relevantParagraphs.push(text); } } }); const lists = []; $('ul, ol').each((i, list) => { const listText = cleanText($(list).text()); if ((isRelevant(listText) || hasRateData(listText)) && listText.length > 20) { const items = []; $(list).find('li').each((j, item) => { const itemText = cleanText($(item).text()); if (itemText.length > 5) items.push('• ' + itemText); }); if (items.length > 0) lists.push(items.join('\\n')); } }); const headings = []; const pageTitle = $('title').text().trim(); $('h1, h2, h3, h4').each((i, heading) => { const text = cleanText($(heading).text()); const tagName = $(heading).prop('tagName'); const level = parseInt(tagName.replace('H', '')); if (text && text.length > 3) headings.push({ level, text }); }); return { tables, relevantParagraphs, lists, headings, pageTitle }; }\nconst html = $input.first().json.data || $input.first().json || '';\nconst htmlStr = typeof html === 'string' ? html : JSON.stringify(html);\nconst mainResult = extractFromHtml(htmlStr);\nconst extraUrlsStr = $('Add Protocol To Domain').first().json.extra_urls || '';\nconst extraResults = [];\nconst SCRAPERAPI_KEY = $env.SCRAPERAPI_KEY || '';\nfunction isBlockedHtml(html) { if (!html || html.length < 500) return true; const lower = html.toLowerCase(); return lower.includes('checking your browser') || lower.includes('just a moment') || lower.includes('cloudflare') || lower.includes('cf-browser-verification') || lower.includes('challenge-platform'); }\nasync function fetchWithScraperApiFallback(url) { try { const controller = new AbortController(); const timeoutId = setTimeout(() => controller.abort(), 30000); const response = await fetch(url, { headers: HEADERS, signal: controller.signal }); clearTimeout(timeoutId); const responseText = await response.text(); if (!isBlockedHtml(responseText)) return responseText; } catch (err) {} try { const scraperUrl = 'https://api.scraperapi.com/?api_key=' + SCRAPERAPI_KEY + '&url=' + encodeURIComponent(url) + '&render=true&country_code=co'; const controller = new AbortController(); const timeoutId = setTimeout(() => controller.abort(), 120000); const response = await fetch(scraperUrl, { headers: HEADERS, signal: controller.signal }); clearTimeout(timeoutId); return await response.text(); } catch (err) { return ''; } }\nif (extraUrlsStr.trim()) { const extraUrls = extraUrlsStr.split(',').map(u => u.trim()).filter(u => u); for (const url of extraUrls) { const responseText = await fetchWithScraperApiFallback(url); if (responseText) { const result = extractFromHtml(responseText); extraResults.push(result); } } }\nconst allTables = [...mainResult.tables, ...extraResults.flatMap(r => r.tables)];\nconst allParagraphs = [...mainResult.relevantParagraphs, ...extraResults.flatMap(r => r.relevantParagraphs)];\nconst allLists = [...mainResult.lists, ...extraResults.flatMap(r => r.lists)];\nconst allHeadings = [...mainResult.headings, ...extraResults.flatMap(r => r.headings)];\nconst uniqueParagraphs = [...new Set(allParagraphs)];\nconst headingsText = allHeadings.slice(0, 20).map(h => '#'.repeat(h.level) + ' ' + h.text).join('\\n');\nconst optimizedText = [headingsText, ...uniqueParagraphs.slice(0, 50), ...allLists.slice(0, 10)].filter(Boolean).join('\\n\\n');\nconst tablesText = allTables.slice(0, 10).join('\\n---\\n');\nreturn { json: { type: 'body_content', title: mainResult.pageTitle, headings: allHeadings.slice(0, 20), tables: tablesText, relevant_content: optimizedText, stats: { tables_found: allTables.length, paragraphs_found: uniqueParagraphs.length, lists_found: allLists.length, extra_urls_processed: extraResults.length } } };"
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567016",
+      "name": "Extract Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1808,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $('Store Config').first().json;\nconst bodyData = $input.first().json;\nconst pageTitle = bodyData.title || '';\nconst headings = bodyData.headings || [];\nconst tables = bodyData.tables || '';\nconst relevantContent = bodyData.relevant_content || '';\nconst stats = bodyData.stats || {};\nconst bankName = pageTitle.includes('-') ? pageTitle.split('-').pop().trim() : pageTitle.includes('|') ? pageTitle.split('|').pop().trim() : pageTitle;\nconst headingsText = headings.filter(h => h.level <= 2).map(h => '#'.repeat(h.level) + ' ' + h.text).join('\\n');\nconst priorityKeywords = config.priority_keywords || [];\nlet finalContent = relevantContent;\nif (priorityKeywords.length > 0) {\n  const paragraphs = relevantContent.split('\\n\\n').filter(p => p.trim());\n  const prioritized = []; const other = [];\n  for (const p of paragraphs) {\n    const lower = p.toLowerCase();\n    if (priorityKeywords.some(kw => lower.includes(kw))) { prioritized.push(p); } else { other.push(p); }\n  }\n  finalContent = [...prioritized, ...other].join('\\n\\n');\n  if (prioritized.length > 0) console.log('Contenido priorizado: ' + prioritized.length + ' párrafos');\n}\nconst sections = [];\nsections.push('# BANCO: ' + bankName);\nif (headingsText) sections.push('## Estructura\\n' + headingsText);\nif (tables && tables.trim()) sections.push('## Tablas de Tasas\\n' + tables);\nif (finalContent && finalContent.trim()) {\n  const truncatedContent = finalContent.length > 8000 ? finalContent.substring(0, 8000) + '...' : finalContent;\n  sections.push('## Información Relevante\\n' + truncatedContent);\n}\nconst compactContext = sections.join('\\n\\n');\nreturn { json: { metadata: { extraction_date: new Date().toISOString(), page_title: pageTitle, bank_name: bankName, optimized: true }, compact_context: compactContext, optimization_stats: { tables_found: stats.tables_found || 0, paragraphs_found: stats.paragraphs_found || 0, final_chars: compactContext.length, estimated_tokens: Math.ceil(compactContext.length / 4) } } };"
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567017",
+      "name": "Optimize Context for LLM",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2288,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "pdf-check",
+              "leftValue": "={{ $('Add Protocol To Domain').item.json.has_pdf }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567018",
+      "name": "Has PDF?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1136,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Add Protocol To Domain').item.json.pdf_url.includes('drive.google.com/file/d/') ? 'https://drive.google.com/uc?export=download&id=' + $('Add Protocol To Domain').item.json.pdf_url.split('drive.google.com/file/d/')[1].split('/')[0].split('?')[0] : $('Add Protocol To Domain').item.json.pdf_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567019",
+      "name": "Extract PDF File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1248,
+        -192
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "pdf-blocked-check",
+              "leftValue": "={{ Object.keys($binary || {}).length > 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and",
+          "conditions[0]": {
+            "leftValue": "={{ Object.keys($binary || {}).length > 0 && !Object.values($binary || {}).some(b => b.mimeType === 'text/html' || b.mimeType === 'text/plain') }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567020",
+      "name": "PDF Blocked?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1600,
+        -192
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.scraperapi.com/?api_key={{ $('Store Config').first().json.scraperapi_key }}&url={{ encodeURIComponent($('Add Protocol To Domain').item.json.pdf_url) }}&render=true&country_code=co",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 120000
+        }
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567021",
+      "name": "ScraperAPI PDF Fallback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2160,
+        48
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nfor (const item of items) {\n  if (item.binary) {\n    for (const key of Object.keys(item.binary)) {\n      const bin = item.binary[key];\n      // Skip if content is HTML (Incapsula / bot-protection page)\n      if (bin.mimeType === 'text/html' || bin.mimeType === 'text/plain') {\n        delete item.binary[key];\n        item.json._pdf_blocked = true;\n        item.json._pdf_blocked_reason = 'HTML response instead of PDF (possible bot-protection)';\n        continue;\n      }\n      // Relabel octet-stream if URL/filename confirms it's a PDF\n      if (bin.mimeType === 'application/octet-stream') {\n        const fileName = (bin.fileName || '').toLowerCase();\n        const url = ($('Add Protocol To Domain').first().json.pdf_url || '').toLowerCase();\n        if (fileName.endsWith('.pdf') || url.includes('.pdf') || url.includes('drive.google.com')) {\n          bin.mimeType = 'application/pdf';\n        }\n      }\n    }\n  }\n}\nreturn items;"
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567022",
+      "name": "Fix PDF MIME",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        -240
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "document",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "text": "={{ $('Store Config').first().json.pdf_prompt }}",
+        "inputType": "binary",
+        "options": {}
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567023",
+      "name": "Analyze PDF Document",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        2416,
+        -240
+      ],
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "ujFBYEOcjREfO4ui",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "no-pdf-data",
+              "name": "pdf_data",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567024",
+      "name": "No PDF (Skip)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1488,
+        16
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567025",
+      "name": "Merge HTML + PDF Data",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2464,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// NODO: Prepare LLM Prompt - PARAMETRIZADO\n// Lee system_prompt y user_prompt_suffix desde config\n// ============================================\n\nconst config = $('Store Config').first().json;\nconst allItems = $input.all();\n\nlet pdfData = '';\nlet htmlData = '';\n\nfor (const item of allItems) {\n  if (item.json?.content?.parts?.[0]?.text) {\n    pdfData = item.json.content.parts[0].text;\n  }\n  if (item.json?.compact_context) {\n    htmlData = item.json.compact_context;\n  }\n}\n\nconst bankUrl = $('Add Protocol To Domain').first().json.finalUrl || '';\nconst bancoNombre = $('Add Protocol To Domain').first().json.banco_nombre || '';\n\nconst systemPrompt = config.system_prompt;\n\nconst userPrompt = `BANCO: ${bancoNombre || 'Identificar del contenido'}\nURL: ${bankUrl}\n\n${pdfData ? '=== DATOS DEL PDF ===\\n' + pdfData + '\\n\\n' : ''}=== DATOS DE LA PÁGINA WEB ===\n${htmlData}\n\n${config.user_prompt_suffix}`;\n\nreturn {\n  json: {\n    system_prompt: systemPrompt,\n    user_prompt: userPrompt,\n    messages: [\n      { role: 'system', content: systemPrompt },\n      { role: 'user', content: userPrompt }\n    ]\n  }\n};"
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567026",
+      "name": "Prepare LLM Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2608,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "={{ $json.user_prompt }}"
+            },
+            {
+              "role": "system",
+              "content": "={{ $json.system_prompt }}"
+            }
+          ]
+        },
+        "simplify": "={{ true }}",
+        "builtInTools": {},
+        "options": {
+          "temperature": 0
+        }
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567027",
+      "name": "GPT-4.1",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        2800,
+        400
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "f53Aggp0OmXdCukb",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $('Store Config').first().json;\nconst rules = config.normalization_rules || 'mortgage';\nconst llmResponse = $input.first().json;\nlet jsonText = '';\nif (llmResponse && llmResponse.output && Array.isArray(llmResponse.output) && llmResponse.output[0]?.content?.[0]?.text) {\n  jsonText = llmResponse.output[0].content[0].text;\n} else { throw new Error('Formato de respuesta OpenAI no reconocido'); }\njsonText = jsonText.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\nconst arrayMatch = jsonText.match(/\\[\\s*\\{[\\s\\S]*\\}\\s*\\]/);\nif (arrayMatch) jsonText = arrayMatch[0];\nlet cleanData;\ntry { cleanData = JSON.parse(jsonText); } catch (error) { throw new Error('Error parsing JSON: ' + error.message + ' Texto: ' + jsonText.substring(0, 500)); }\nif (!Array.isArray(cleanData)) { if (typeof cleanData === 'object' && cleanData !== null) { cleanData = [cleanData]; } else { throw new Error('La respuesta no es un array o objeto válido'); } }\n\nconst excludeTerms = config.exclude_terms || [];\nconst creditType = config.credit_type || '';\nconst RATE_TYPE = 'Tasa efectiva anual';\n\nfunction normalizeMortgage(item) {\n  const VALID_HOUSING = ['VIS', 'No VIS', 'Aplica para ambos'];\n  const VALID_DENOMINATION = ['UVR', 'Pesos'];\n  let ht = (item.housing_type || '').trim();\n  const htLower = ht.toLowerCase().replace(/[\\s\\-_]+/g, '');\n  if (htLower === 'novis' || htLower.includes('novis')) ht = 'No VIS';\n  else if (htLower === 'vis' || (htLower.includes('vis') && !htLower.includes('no'))) ht = 'VIS';\n  else if (htLower.includes('ambos') || htLower.includes('aplica')) ht = 'Aplica para ambos';\n  if (!VALID_HOUSING.includes(ht)) ht = 'Aplica para ambos';\n  item.housing_type = ht;\n  let denom = (item.rate_denomination || '').trim();\n  if (denom.toLowerCase().includes('uvr')) denom = 'UVR'; else denom = 'Pesos';\n  item.rate_denomination = denom;\n  return item;\n}\n\nfunction normalizeVehicle(item) {\n  const VALID_VT = ['Nuevo', 'Usado', 'Ambos'];\n  const VALID_VC = ['Automóvil', 'Moto', 'Ambos'];\n  const VALID_FT = ['Tradicional', 'Eléctrico', 'Híbrido', 'Eléctrico/Híbrido', 'Todos'];\n  item.rate_denomination = 'Pesos';\n  let vt = (item.vehicle_type || '').trim();\n  const vtL = vt.toLowerCase();\n  if (vtL.includes('nuevo') || vtL === 'new') vt = 'Nuevo';\n  else if (vtL.includes('usado') || vtL === 'used') vt = 'Usado';\n  else vt = 'Ambos';\n  if (!VALID_VT.includes(vt)) vt = 'Ambos';\n  item.vehicle_type = vt;\n  let vc = (item.vehicle_category || '').trim();\n  const vcL = vc.toLowerCase();\n  if (vcL.includes('auto') || vcL.includes('carro') || vcL.includes('camioneta')) vc = 'Automóvil';\n  else if (vcL.includes('moto')) vc = 'Moto';\n  else vc = 'Ambos';\n  if (!VALID_VC.includes(vc)) vc = 'Ambos';\n  item.vehicle_category = vc;\n  let ft = (item.vehicle_fuel_type || '').trim();\n  const ftL = ft.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');\n  if (ftL.includes('electrico') && ftL.includes('hibrido')) ft = 'Eléctrico/Híbrido';\n  else if (ftL.includes('electrico') || ftL.includes('electric') || ftL.includes('bev')) ft = 'Eléctrico';\n  else if (ftL.includes('hibrido') || ftL.includes('hybrid') || ftL.includes('phev')) ft = 'Híbrido';\n  else if (ftL.includes('tradicional') || ftL.includes('combustion') || ftL.includes('gasolina') || ftL.includes('diesel')) ft = 'Tradicional';\n  else ft = 'Todos';\n  if (!VALID_FT.includes(ft)) ft = 'Todos';\n  item.vehicle_fuel_type = ft;\n  return item;\n}\n\nfunction normalizeEducation(item) {\n  const VALID_LEVEL = ['Pregrado', 'Posgrado', 'Maestría', 'Doctorado', 'Técnico', 'Tecnológico', 'Todos'];\n  const VALID_MODALITY = ['Presencial', 'Virtual', 'Ambos', 'Todos'];\n  item.rate_denomination = 'Pesos';\n  let level = (item.education_level || '').trim();\n  const levelL = level.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');\n  if (levelL.includes('pregrado') || levelL.includes('undergraduate')) level = 'Pregrado';\n  else if (levelL.includes('doctorado') || levelL.includes('phd')) level = 'Doctorado';\n  else if (levelL.includes('maestria') || levelL.includes('master')) level = 'Maestría';\n  else if (levelL.includes('posgrado') || levelL.includes('postgrad') || levelL.includes('especializacion')) level = 'Posgrado';\n  else if (levelL.includes('tecnologo') || levelL.includes('tecnologico')) level = 'Tecnológico';\n  else if (levelL.includes('tecnico') || levelL.includes('technical')) level = 'Técnico';\n  else level = 'Todos';\n  if (!VALID_LEVEL.includes(level)) level = 'Todos';\n  item.education_level = level;\n  let mod = (item.modality || '').trim();\n  const modL = mod.toLowerCase();\n  if (modL.includes('presencial')) mod = 'Presencial';\n  else if (modL.includes('virtual') || modL.includes('distancia')) mod = 'Virtual';\n  else if (modL.includes('ambos') || modL.includes('mixto')) mod = 'Ambos';\n  else mod = 'Todos';\n  item.modality = mod;\n  return item;\n}\n\nconst validated = cleanData\n  .filter(item => {\n    if (!item.bank || (!item.rate && !item.rate_range)) return false;\n    const ct = (item.credit_type || '').toLowerCase();\n    if (excludeTerms.some(term => ct.includes(term))) return false;\n    return true;\n  })\n  .map(item => {\n    item.credit_type = creditType;\n    item.rate_type = RATE_TYPE;\n    let rate = (item.rate || '').trim();\n    rate = rate.replace(/(\\d),(\\d)/g, '$1.$2');\n    if (rate && !rate.includes('%')) rate += '%';\n    item.rate = rate;\n    if (item.payment_type) { const pt = item.payment_type.toLowerCase(); if (pt.includes('fij')) item.payment_type = 'Cuota fija'; else if (pt.includes('variabl')) item.payment_type = 'Cuota variable'; else item.payment_type = null; }\n    if (item.conditions && !Array.isArray(item.conditions)) item.conditions = [String(item.conditions)];\n    if (item.requirements && !Array.isArray(item.requirements)) item.requirements = [String(item.requirements)];\n    for (const key of Object.keys(item)) { if (item[key] === '' || item[key] === 'N/A' || item[key] === 'n/a') item[key] = null; }\n    if (rules === 'mortgage') return normalizeMortgage(item);\n    if (rules === 'vehicle') return normalizeVehicle(item);\n    if (rules === 'education') return normalizeEducation(item);\n    return item;\n  });\n\nif (validated.length === 0) { return [{ json: { _error: true, _message: 'No se encontraron productos válidos', _raw_response: jsonText.substring(0, 500) } }]; }\nconsole.log('Productos válidos: ' + validated.length);\nreturn validated.map(item => ({ json: item }));"
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567028",
+      "name": "Validate & Parse Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3120,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $('Store Config').first().json;\nconst rules = config.normalization_rules || 'mortgage';\nconst items = $input.all().map(i => i.json);\nif (items.length === 1 && items[0]._error) { console.log('Skipping: ' + items[0]._message); return []; }\nconst domainsNode = $('Add Protocol To Domain').first().json;\nconst page_url = domainsNode.finalUrl;\nconst pdf_url = domainsNode.pdf_url;\nlet uvrData = {};\ntry { uvrData = $('Parse UVR API Response').first()?.json || {}; } catch(e) { uvrData = {}; }\nconst variacionUVR = uvrData.variacion_porcentual_uvr;\nconst uvrValido = uvrData.uvr_calculo_valido === true;\nfunction normalizeForId(text) { if (!text) return ''; return text.toString().toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/\\s+/g, '').replace(/_+/g, '').replace(/-+/g, '').replace(/[^a-z0-9%.]/g, '').trim(); }\nfunction convertirUvrAEA(textoTasa) { if (!textoTasa || !uvrValido || variacionUVR === null) return ''; const match = textoTasa.match(/(\\d+[.,]?\\d*)/); if (!match) return ''; const spread = parseFloat(match[1].replace(',', '.')) / 100; const tasaEA = ((1 + spread) * (1 + variacionUVR)) - 1; return (tasaEA * 100).toFixed(2) + '%'; }\nfunction obtenerFechaHoraColombia() { const opciones = { timeZone: 'America/Bogota', hour12: false }; const fechaHora = new Date().toLocaleString('sv-SE', opciones).replace(' ', 'T'); const [fecha, hora] = fechaHora.split('T'); return { fecha, hora }; }\nconst { fecha, hora } = obtenerFechaHoraColombia();\n\nlet result = items.map(item => {\n  const banco = item.bank || '';\n  const tipoCredito = item.credit_type || '';\n  const tasaTexto = item.rate || '';\n  let idUnico, tipoVivienda, denominacion, tasaFinal = '', uvrVariacionAnual = '', tasaMinima = item.rate_range?.min || '', tasaMaxima = item.rate_range?.max || '';\n\n  if (rules === 'mortgage') {\n    tipoVivienda = item.housing_type || '';\n    denominacion = item.rate_denomination || 'Pesos';\n    idUnico = [normalizeForId(banco), normalizeForId(tipoCredito), normalizeForId(tipoVivienda), normalizeForId(denominacion)].filter(p => p).join('__');\n    const esUVR = denominacion.toLowerCase().includes('uvr');\n    if (esUVR && uvrValido && variacionUVR !== null) {\n      const tasaMatch = tasaTexto.match(/(\\d+[.,]?\\d*)/);\n      if (tasaMatch) { const spread = parseFloat(tasaMatch[1].replace(',', '.')) / 100; tasaFinal = (((1 + spread) * (1 + variacionUVR)) - 1) * 100; tasaFinal = tasaFinal.toFixed(2) + '%'; }\n      uvrVariacionAnual = (variacionUVR * 100).toFixed(2) + '%';\n      if (tasaMinima) { const mc = convertirUvrAEA(tasaMinima); if (mc) tasaMinima = mc; }\n      if (tasaMaxima) { const mc = convertirUvrAEA(tasaMaxima); if (mc) tasaMaxima = mc; }\n    }\n  } else if (rules === 'vehicle') {\n    const vType = item.vehicle_type || 'Ambos';\n    const vCat = item.vehicle_category || 'Ambos';\n    const fType = item.vehicle_fuel_type || 'Todos';\n    tipoVivienda = fType === 'Todos' ? '' : fType;\n    denominacion = 'Pesos';\n    idUnico = [normalizeForId(banco), normalizeForId(tipoCredito), normalizeForId(vType), normalizeForId(vCat), normalizeForId(fType)].filter(p => p && p !== 'todos').join('__');\n  } else if (rules === 'education') {\n    const eduLevel = item.education_level || 'Todos';\n    const modality = item.modality || 'Todos';\n    tipoVivienda = eduLevel === 'Todos' ? '' : eduLevel;\n    denominacion = 'Pesos';\n    idUnico = [normalizeForId(banco), normalizeForId(tipoCredito), normalizeForId(eduLevel), normalizeForId(modality)].filter(p => p && p !== 'todos').join('__');\n  } else {\n    tipoVivienda = ''; denominacion = 'Pesos';\n    idUnico = [normalizeForId(banco), normalizeForId(tipoCredito)].filter(p => p).join('__');\n  }\n\n  return {\n    id_unico: idUnico, banco: banco, tipo_credito: tipoCredito, tipo_vivienda: tipoVivienda, denominacion: denominacion,\n    tipo_tasa: item.rate_type || '', tasa: tasaTexto, tasa_final: tasaFinal, uvr_variacion_anual: uvrVariacionAnual,\n    tasa_minima: tasaMinima, tasa_maxima: tasaMaxima, monto_minimo: item.min_amount || '', monto_maximo: item.max_amount || '',\n    plazo_maximo: item.max_term || '', tipo_pago: item.payment_type || '', descripcion: item.description || '',\n    condiciones: Array.isArray(item.conditions) ? item.conditions.join('; ') : (item.conditions || ''),\n    requisitos: Array.isArray(item.requirements) ? item.requirements.join('; ') : (item.requirements || ''),\n    descuento_nomina: item.additional_info?.descuento_nomina || '', beneficio_avaluo: item.additional_info?.beneficio_avaluo || item.additional_info?.seguro_obligatorio || '',\n    fecha_extraccion: fecha, hora_extraccion: hora, url_pagina: page_url || '', url_pdf: pdf_url || ''\n  };\n});\nconst unique = {}; result.forEach(item => { if (!unique[item.id_unico]) unique[item.id_unico] = item; });\nreturn Object.values(unique).map(r => ({ json: r }));"
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567029",
+      "name": "Prepare For Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3280,
+        400
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1yUR0Tow3yrbSemyzmsqDY4VoF113wrxfCwVDhSTOsoM",
+          "mode": "list",
+          "cachedResultName": "BankScrappedData",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1yUR0Tow3yrbSemyzmsqDY4VoF113wrxfCwVDhSTOsoM/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{ $('Store Config').first().json.data_sheet }}",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "id_unico"
+          ],
+          "schema": [
+            {
+              "id": "id_unico",
+              "displayName": "id_unico",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "banco",
+              "displayName": "banco",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tipo_credito",
+              "displayName": "tipo_credito",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tipo_vivienda",
+              "displayName": "tipo_vivienda",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "denominacion",
+              "displayName": "denominacion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tipo_tasa",
+              "displayName": "tipo_tasa",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tasa",
+              "displayName": "tasa",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tasa_final",
+              "displayName": "tasa_final",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "uvr_variacion_anual",
+              "displayName": "uvr_variacion_anual",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tasa_minima",
+              "displayName": "tasa_minima",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tasa_maxima",
+              "displayName": "tasa_maxima",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "monto_minimo",
+              "displayName": "monto_minimo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "monto_maximo",
+              "displayName": "monto_maximo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "plazo_maximo",
+              "displayName": "plazo_maximo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tipo_pago",
+              "displayName": "tipo_pago",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "descripcion",
+              "displayName": "descripcion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "condiciones",
+              "displayName": "condiciones",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "requisitos",
+              "displayName": "requisitos",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "descuento_nomina",
+              "displayName": "descuento_nomina",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "beneficio_avaluo",
+              "displayName": "beneficio_avaluo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "fecha_extraccion",
+              "displayName": "fecha_extraccion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "hora_extraccion",
+              "displayName": "hora_extraccion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "url_pagina",
+              "displayName": "url_pagina",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "url_pdf",
+              "displayName": "url_pdf",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567030",
+      "name": "Append to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3472,
+        400
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "rWJE0ntmYwzYmIeB",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Store Config').first().json.api_url }}/api/scraping/ingest",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-api-key",
+              "value": "={{ $('Store Config').first().json.nestjs_api_key }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567031",
+      "name": "Send to NestJS API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        3648,
+        400
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Wait between banks to avoid rate limiting on Gemini / GPT APIs\nconst WAIT_MS = 8000;\nawait new Promise(resolve => setTimeout(resolve, WAIT_MS));\nreturn $input.all();"
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567032",
+      "name": "Wait 3s Between Banks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3888,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const allBanks = $('Filter Active Banks').all();\nconst totalBanks = allBanks.length;\nconst opciones = { timeZone: 'America/Bogota', hour12: false };\nconst fechaHora = new Date().toLocaleString('sv-SE', opciones).replace(' ', 'T');\nconst [fecha, hora] = fechaHora.split('T');\nconst config = $('Store Config').first().json;\nconst summary = { execution_date: fecha, execution_time: hora, total_banks_processed: totalBanks, product_type: config.product_type || 'unknown', banks_list: allBanks.map(b => b.json.banco || b.json.url).join(', '), status: 'completed' };\nconsole.log('Scraping completado: ' + totalBanks + ' bancos para ' + summary.product_type);\nreturn { json: summary };"
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567033",
+      "name": "Execution Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        688,
+        656
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Store Config').first().json.pdf_url }}/extract-pdf",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $('Store Config').item.json.playwright_api_key }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ url: $('Add Protocol To Domain').item.json.pdf_url, timeout: 90000 }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 120000
+        }
+      },
+      "id": "browserless-pdf-001",
+      "name": "Playwright PDF (Tunnel)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1760,
+        -80
+      ],
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "browserless-check",
+              "leftValue": "={{ Object.keys($binary || {}).length > 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and",
+          "conditions[0]": {
+            "leftValue": "={{ Object.keys($binary || {}).length > 0 && !Object.values($binary || {}).some(b => b.mimeType === 'text/html' || b.mimeType === 'text/plain') }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "pdf-still-blocked-001",
+      "name": "PDF Still Blocked?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1968,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Store Config').first().json.pdf_url + '/extract-html' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $('Store Config').first().json.playwright_api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"url\": \"{{ $('Add Protocol To Domain').first().json.finalUrl }}\",\n  \"timeout\": 60000\n}",
+        "options": {
+          "timeout": 90000
+        }
+      },
+      "id": "playwright-html-001",
+      "name": "Playwright HTML (Tunnel)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1808,
+        496
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "leftValue": ""
+          },
+          "combinator": "or",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.stats.tables_found }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            },
+            {
+              "leftValue": "={{ $json.relevant_content || '' }}",
+              "rightValue": "%",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "has-rate-data-001",
+      "name": "Has Rate Data?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2080,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const cheerio = require('cheerio');\nconst config = $('Store Config').first().json;\nconst KEYWORDS = config.keywords || ['tasa', 'tasas', 'crédito', 'credito', 'plazo', 'cuota', 'monto', 'financiación'];\nconst RATE_REGEX = /\\d+[.,]\\d+\\s*%|E\\.?A\\.?|N\\.?M\\.?V|UVR/i;\nfunction cleanText(text) { return text.replace(/\\s+/g, ' ').trim(); }\nfunction hasRateData(text) { return RATE_REGEX.test(text); }\nfunction isRelevant(text) { if (!text) return false; if (text.length >= 5 && hasRateData(text)) return true; if (text.length < 10) return false; const lowerText = text.toLowerCase(); return KEYWORDS.some(keyword => lowerText.includes(keyword)); }\nfunction extractFromHtml(htmlStr) { const $ = cheerio.load(htmlStr); $('script, style, noscript, iframe, form').remove(); const tables = []; $('table').each((i, table) => { const tableText = $(table).text(); if (isRelevant(tableText)) { const rows = []; $(table).find('tr').each((j, row) => { const cells = []; $(row).find('td, th').each((k, cell) => { const cellText = cleanText($(cell).text()); if (cellText) cells.push(cellText); }); if (cells.length > 0) rows.push(cells.join(' | ')); }); if (rows.length > 0) tables.push(rows.join('\\n')); } }); const relevantParagraphs = []; const seen = new Set(); $('h1, h2, h3, h4').each((i, heading) => { const headText = cleanText($(heading).text()); if (!headText || headText.length < 3) return; const nextSibling = $(heading).next(); const nextText = nextSibling.length ? cleanText(nextSibling.text()) : ''; if (isRelevant(headText) || isRelevant(nextText) || hasRateData(headText)) { const combined = nextText ? headText + ': ' + nextText : headText; if (!seen.has(combined) && combined.length < 1000) { seen.add(combined); relevantParagraphs.push(combined); } } }); $('[class*=\"card\"], [class*=\"grid\"], [class*=\"rate\"], [class*=\"tasa\"], [class*=\"product\"], section, article').each((i, container) => { const text = cleanText($(container).text()); if (text.length > 15 && text.length < 2000 && hasRateData(text)) { if (!seen.has(text)) { seen.add(text); relevantParagraphs.push(text); } } }); $('p, div, span, li, td, th, h1, h2, h3, h4').each((i, elem) => { const text = cleanText($(elem).text()); if (hasRateData(text) && text.length >= 5 && text.length < 500) { if (!seen.has(text)) { seen.add(text); relevantParagraphs.push(text); } } if (text.length > 20 && text.length < 1000 && isRelevant(text)) { if (!seen.has(text)) { seen.add(text); relevantParagraphs.push(text); } } }); const lists = []; $('ul, ol').each((i, list) => { const listText = cleanText($(list).text()); if ((isRelevant(listText) || hasRateData(listText)) && listText.length > 20) { const items = []; $(list).find('li').each((j, item) => { const itemText = cleanText($(item).text()); if (itemText.length > 5) items.push('• ' + itemText); }); if (items.length > 0) lists.push(items.join('\\n')); } }); const headings = []; const pageTitle = $('title').text().trim(); $('h1, h2, h3, h4').each((i, heading) => { const text = cleanText($(heading).text()); const tagName = $(heading).prop('tagName'); const level = parseInt(tagName.replace('H', '')); if (text && text.length > 3) headings.push({ level, text }); }); return { tables, relevantParagraphs, lists, headings, pageTitle }; }\nconst html = $input.first().json.data || $input.first().json || '';\nconst htmlStr = typeof html === 'string' ? html : JSON.stringify(html);\nconst mainResult = extractFromHtml(htmlStr);\nconst allTables = mainResult.tables;\nconst allParagraphs = mainResult.relevantParagraphs;\nconst allLists = mainResult.lists;\nconst allHeadings = mainResult.headings;\nconst uniqueParagraphs = [...new Set(allParagraphs)];\nconst headingsText = allHeadings.slice(0, 20).map(h => '#'.repeat(h.level) + ' ' + h.text).join('\\n');\nconst optimizedText = [headingsText, ...uniqueParagraphs.slice(0, 50), ...allLists.slice(0, 10)].filter(Boolean).join('\\n\\n');\nconst tablesText = allTables.slice(0, 10).join('\\n---\\n');\nconsole.log('[Playwright HTML] tables:', allTables.length, '| paragraphs:', uniqueParagraphs.length);\nreturn { json: { type: 'body_content', title: mainResult.pageTitle, headings: allHeadings.slice(0, 20), tables: tablesText, relevant_content: optimizedText, stats: { tables_found: allTables.length, paragraphs_found: uniqueParagraphs.length, lists_found: allLists.length, extra_urls_processed: 0 } } };"
+      },
+      "id": "extract-body-playwright-001",
+      "name": "Extract Body (Playwright)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2080,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nfor (const item of items) {\n  if (!item.binary) continue;\n  for (const key of Object.keys(item.binary)) {\n    const bin = item.binary[key];\n    try {\n      // Check first 10 bytes for PDF magic header %PDF\n      const buffer = Buffer.from(bin.data, 'base64');\n      const header = buffer.slice(0, 10).toString('latin1');\n      if (!header.startsWith('%PDF')) {\n        const preview = header.replace(/[\\x00-\\x1F]/g, ' ').slice(0, 30);\n        console.log(`[Validate PDF] Blocked - not a PDF. Header: \"${preview}\" | MIME: ${bin.mimeType}`);\n        delete item.binary[key];\n        item.json._pdf_blocked = true;\n        item.json._pdf_block_reason = `Non-PDF response (header: ${preview})`;\n      } else {\n        console.log(`[Validate PDF] OK - valid PDF. MIME: ${bin.mimeType}`);\n      }\n    } catch(e) {\n      console.log('[Validate PDF] Error reading binary:', e.message);\n    }\n  }\n}\nreturn items;"
+      },
+      "id": "validate-pdf-content-001",
+      "name": "Validate PDF Content",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1424,
+        -192
+      ]
+    }
+  ],
+  "pinData": {
+    "Execute Workflow Trigger": [
+      {
+        "json": {
+          "product_type": "libre_inversion",
+          "links_sheet": "LinksPruebas",
+          "data_sheet": "DataPruebas",
+          "needs_uvr": false,
+          "normalization_rules": "libre_inversion",
+          "credit_type": "Crédito de libre inversión",
+          "exclude_terms": [
+            "hipotecario",
+            "vivienda",
+            "vehículo",
+            "vehiculo",
+            "leasing habitacional",
+            "tarjeta de crédito",
+            "educativo",
+            "educación",
+            "microcrédito"
+          ],
+          "keywords": [
+            "tasa",
+            "tasas",
+            "crédito",
+            "credito",
+            "libre inversión",
+            "libre inversion",
+            "consumo",
+            "libranza",
+            "nómina",
+            "nomina",
+            "personal",
+            "interés",
+            "interes",
+            "plazo",
+            "cuota",
+            "monto",
+            "financiación",
+            "financiacion",
+            "ea",
+            "efectivo anual",
+            "desde",
+            "hasta",
+            "fija",
+            "variable",
+            "mensual",
+            "porcentaje",
+            "descuento",
+            "garantía",
+            "garantia",
+            "libre destino",
+            "multiuso",
+            "disponible",
+            "remodelación",
+            "remodelacion",
+            "viaje",
+            "vacaciones",
+            "emergencia",
+            "proyecto",
+            "preaprobado",
+            "pre-aprobado",
+            "digital",
+            "en línea",
+            "en linea",
+            "desembolso inmediato",
+            "sin fiador",
+            "sin codeudor"
+          ],
+          "priority_keywords": [
+            "libre inversión",
+            "libre inversion",
+            "crédito de consumo",
+            "credito de consumo",
+            "libranza",
+            "crédito de libranza",
+            "credito de libranza",
+            "crédito de nómina",
+            "credito de nomina",
+            "nómina",
+            "nomina",
+            "crédito personal",
+            "credito personal",
+            "libre destino",
+            "crédito preaprobado",
+            "credito preaprobado",
+            "crédito digital",
+            "credito digital",
+            "crédito rotativo",
+            "credito rotativo",
+            "adelanto de nómina",
+            "adelanto de nomina"
+          ],
+          "pdf_prompt": "Extrae SOLO información de tasas de CRÉDITO DE LIBRE INVERSIÓN / CONSUMO / LIBRANZA en Colombia de este PDF bancario.\n\nEXTRAE:\n- Tasas E.A. (Efectivo Anual) para créditos de libre inversión, consumo o libranza\n- Diferencia entre libre inversión tradicional y libranza/nómina (si aplica)\n- Diferencia entre cliente preferencial y cliente nuevo (si aplica)\n- IMPORTANTE: Diferencia entre crédito CON GARANTÍA (libranza/nómina) vs SIN GARANTÍA\n  * Las libranzas/nómina suelen tener tasas más bajas\n  * Si hay tasas separadas por modalidad, repórtalas POR SEPARADO\n- Plazos, montos, condiciones, requisitos\n- Descuentos por nómina o relación con el banco\n\nIGNORA COMPLETAMENTE:\n- Créditos hipotecarios / de vivienda\n- Créditos de vehículo\n- Leasing habitacional\n- Créditos educativos\n- Tarjetas de crédito\n- Microcréditos\n- Información legal/regulatoria genérica\n\nFORMATO: Devuelve tablas en Markdown con columnas:\n| Modalidad | Tipo Cliente | Tasa E.A. | Plazo Máx | Monto Máx | Garantía |\n\nDonde Modalidad = Libre Inversión, Libranza, Nómina, Consumo, Rotativo, Digital\n\nSi hay condiciones, requisitos o beneficios adicionales, inclúyelos debajo de cada tabla.",
+          "user_prompt_suffix": "Extrae TODOS los créditos de LIBRE INVERSIÓN / CONSUMO / LIBRANZA disponibles.\nRecuerda:\n- Cada combinación de modalidad (Libre Inversión/Libranza/Nómina/Digital/Rotativo) + tipo_cliente = un objeto separado\n- Si el banco tiene tasas especiales para libranza o nómina, SIEMPRE créalos como objetos SEPARADOS\n- Si NO diferencia por modalidad, usa loan_modality: \"Libre inversión\"\n- SOLO créditos de libre inversión/consumo/libranza (NO vivienda, NO vehículo, NO educativo)\n- Responde SOLO con el array JSON",
+          "system_prompt": "Eres un extractor de datos estructurados especializado EXCLUSIVAMENTE en tasas de créditos de LIBRE INVERSIÓN, CONSUMO y LIBRANZA en Colombia.\n\nRESPONDE ÚNICAMENTE con un array JSON válido. Sin explicaciones, sin markdown, sin ```.\n\n## REGLAS ESTRICTAS DE EXTRACCIÓN\n\n1. SOLO créditos de LIBRE INVERSIÓN, CONSUMO, LIBRANZA, NÓMINA, ROTATIVOS, DIGITALES\n2. EXCLUYE SIEMPRE: créditos hipotecarios, vivienda, vehículo, leasing habitacional, educativos, tarjetas de crédito, microcréditos\n3. Cada combinación ÚNICA de modalidad + tipo_cliente = un objeto JSON separado\n4. Las tasas DEBEN ser E.A. (Efectivo Anual)\n5. Si un campo no tiene información, usa null (NUNCA string vacío \"\")\n6. Si hay rango de tasas (\"desde X% hasta Y%\"), usa rate_range con min y max\n7. CRÍTICO: Muchos bancos colombianos ofrecen tasas DIFERENCIADAS para libranza/nómina vs libre inversión sin garantía. Si la página menciona tasas separadas, SIEMPRE crea objetos separados.\n8. Si el banco NO diferencia por modalidad (misma tasa para todos), usa loan_modality: \"Libre inversión\"\n\n## VALORES EXACTOS PERMITIDOS (usa EXACTAMENTE estos strings)\n\n- credit_type: \"Crédito de libre inversión\" (SIEMPRE este valor exacto)\n- loan_modality: \"Libre inversión\" | \"Libranza\" | \"Nómina\" | \"Consumo\" | \"Rotativo\" | \"Digital\" | \"Preaprobado\"\n  * \"Libre inversión\" = crédito sin destinación específica, sin garantía de nómina\n  * \"Libranza\" = descuento directo de nómina con convenio empresarial\n  * \"Nómina\" = respaldado por recibo de nómina del banco\n  * \"Consumo\" = crédito de consumo general\n  * \"Rotativo\" = crédito rotativo / cupo rotativo\n  * \"Digital\" = crédito 100% digital, desembolso inmediato\n  * \"Preaprobado\" = crédito preaprobado para clientes existentes\n- client_type: \"General\" | \"Preferencial\" | \"Nómina\" | \"Pensionado\" | \"Empleado público\" | \"Todos\"\n  * \"General\" = cualquier cliente\n  * \"Preferencial\" = clientes con historial o relación bancaria\n  * \"Nómina\" = clientes con cuenta nómina en el banco\n  * \"Pensionado\" = personas con pensión\n  * \"Empleado público\" = empleados del sector público\n  * \"Todos\" = cuando NO hay diferenciación por tipo de cliente\n- rate_denomination: \"Pesos\" (SIEMPRE para libre inversión)\n- rate_type: \"Tasa efectiva anual\" (SIEMPRE)\n- payment_type: \"Cuota fija\" | \"Cuota variable\" | null\n\n## FORMATO DE TASA\n- Formato: \"X.XX%\" (ejemplo: \"18.50%\")\n- SIEMPRE usa punto decimal, NUNCA coma\n- SIEMPRE incluye el símbolo %\n\n## ESQUEMA JSON\n{\n  \"bank\": \"string (nombre oficial del banco)\",\n  \"credit_type\": \"Crédito de libre inversión\",\n  \"loan_modality\": \"Libre inversión\" | \"Libranza\" | \"Nómina\" | \"Consumo\" | \"Rotativo\" | \"Digital\" | \"Preaprobado\",\n  \"client_type\": \"General\" | \"Preferencial\" | \"Nómina\" | \"Pensionado\" | \"Empleado público\" | \"Todos\",\n  \"rate_denomination\": \"Pesos\",\n  \"rate_type\": \"Tasa efectiva anual\",\n  \"rate\": \"string (ej: 18.50%)\",\n  \"rate_range\": {\"min\": \"string\", \"max\": \"string\"} | null,\n  \"description\": \"string corta\",\n  \"conditions\": [\"string\", ...] | null,\n  \"requirements\": [\"string\", ...] | null,\n  \"min_amount\": \"string\" | null,\n  \"max_amount\": \"string\" | null,\n  \"max_term\": \"string (ej: 7 años)\" | null,\n  \"payment_type\": \"Cuota fija\" | \"Cuota variable\" | null,\n  \"additional_info\": {\n    \"desembolso\": \"string (ej: Inmediato, 24 horas, 3 días hábiles)\" | null,\n    \"requiere_codeudor\": \"string (ej: No, Sí para montos > $50M)\" | null,\n    \"descuento_nomina\": \"string\" | null,\n    \"seguro_deudor\": \"string\" | null,\n    \"beneficio_tasa\": \"string (ej: -1% con cuenta nómina)\" | null\n  } | null\n}\n\n## EJEMPLO DE RESPUESTA CORRECTA\n\n[\n  {\n    \"bank\": \"Bancolombia\",\n    \"credit_type\": \"Crédito de libre inversión\",\n    \"loan_modality\": \"Libre inversión\",\n    \"client_type\": \"General\",\n    \"rate_denomination\": \"Pesos\",\n    \"rate_type\": \"Tasa efectiva anual\",\n    \"rate\": \"22.50%\",\n    \"rate_range\": null,\n    \"description\": \"Crédito de libre inversión sin destinación específica\",\n    \"conditions\": [\"Plazo máximo 60 meses\", \"Desembolso en 24 horas\"],\n    \"requirements\": [\"Ingresos desde 1 SMMLV\", \"Historial crediticio\"],\n    \"min_amount\": \"$1,000,000\",\n    \"max_amount\": \"$200,000,000\",\n    \"max_term\": \"5 años\",\n    \"payment_type\": \"Cuota fija\",\n    \"additional_info\": {\n      \"desembolso\": \"24 horas\",\n      \"requiere_codeudor\": \"No\",\n      \"descuento_nomina\": null,\n      \"seguro_deudor\": \"Incluido\",\n      \"beneficio_tasa\": null\n    }\n  },\n  {\n    \"bank\": \"Bancolombia\",\n    \"credit_type\": \"Crédito de libre inversión\",\n    \"loan_modality\": \"Libranza\",\n    \"client_type\": \"Nómina\",\n    \"rate_denomination\": \"Pesos\",\n    \"rate_type\": \"Tasa efectiva anual\",\n    \"rate\": \"16.80%\",\n    \"rate_range\": null,\n    \"description\": \"Crédito de libranza con descuento de nómina\",\n    \"conditions\": [\"Plazo máximo 84 meses\", \"Convenio empresarial requerido\"],\n    \"requirements\": [\"Cuenta nómina Bancolombia\", \"Antigüedad laboral mínima 6 meses\"],\n    \"min_amount\": \"$1,000,000\",\n    \"max_amount\": \"$300,000,000\",\n    \"max_term\": \"7 años\",\n    \"payment_type\": \"Cuota fija\",\n    \"additional_info\": {\n      \"desembolso\": \"Inmediato\",\n      \"requiere_codeudor\": \"No\",\n      \"descuento_nomina\": \"Descuento automático de nómina\",\n      \"seguro_deudor\": \"Incluido\",\n      \"beneficio_tasa\": \"-3% vs libre inversión tradicional\"\n    }\n  }\n]"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Store Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Config": {
+      "main": [
+        [
+          {
+            "node": "Read Bank URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Bank URLs": {
+      "main": [
+        [
+          {
+            "node": "Filter Active Banks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Active Banks": {
+      "main": [
+        [
+          {
+            "node": "Needs UVR?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs UVR?": {
+      "main": [
+        [
+          {
+            "node": "Fetch UVR from BanRep API",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Restore Bank Items Direct",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch UVR from BanRep API": {
+      "main": [
+        [
+          {
+            "node": "Parse UVR API Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse UVR API Response": {
+      "main": [
+        [
+          {
+            "node": "Restore Bank Items UVR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore Bank Items UVR": {
+      "main": [
+        [
+          {
+            "node": "Process Banks One by One",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore Bank Items Direct": {
+      "main": [
+        [
+          {
+            "node": "Process Banks One by One",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Banks One by One": {
+      "main": [
+        [
+          {
+            "node": "Set Bank Variables",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execution Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Bank Variables": {
+      "main": [
+        [
+          {
+            "node": "Add Protocol To Domain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Protocol To Domain": {
+      "main": [
+        [
+          {
+            "node": "Has PDF?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract Page Structure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Page Structure": {
+      "main": [
+        [
+          {
+            "node": "HTML Blocked?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML Blocked?": {
+      "main": [
+        [
+          {
+            "node": "ScraperAPI Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ScraperAPI Fallback": {
+      "main": [
+        [
+          {
+            "node": "Extract Body",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Playwright HTML (Tunnel)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Optimize Context for LLM": {
+      "main": [
+        [
+          {
+            "node": "Merge HTML + PDF Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Has PDF?": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF File",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No PDF (Skip)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PDF Blocked?": {
+      "main": [
+        [
+          {
+            "node": "Fix PDF MIME",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Playwright PDF (Tunnel)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ScraperAPI PDF Fallback": {
+      "main": [
+        [
+          {
+            "node": "Fix PDF MIME",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fix PDF MIME": {
+      "main": [
+        [
+          {
+            "node": "Analyze PDF Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze PDF Document": {
+      "main": [
+        [
+          {
+            "node": "Merge HTML + PDF Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No PDF (Skip)": {
+      "main": [
+        [
+          {
+            "node": "Merge HTML + PDF Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge HTML + PDF Data": {
+      "main": [
+        [
+          {
+            "node": "Prepare LLM Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare LLM Prompt": {
+      "main": [
+        [
+          {
+            "node": "GPT-4.1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GPT-4.1": {
+      "main": [
+        [
+          {
+            "node": "Validate & Parse Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate & Parse Response": {
+      "main": [
+        [
+          {
+            "node": "Prepare For Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare For Output": {
+      "main": [
+        [
+          {
+            "node": "Append to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append to Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Send to NestJS API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send to NestJS API": {
+      "main": [
+        [
+          {
+            "node": "Wait 3s Between Banks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 3s Between Banks": {
+      "main": [
+        [
+          {
+            "node": "Process Banks One by One",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Playwright PDF (Tunnel)": {
+      "main": [
+        [
+          {
+            "node": "PDF Still Blocked?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PDF Still Blocked?": {
+      "main": [
+        [
+          {
+            "node": "Fix PDF MIME",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ScraperAPI PDF Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Body": {
+      "main": [
+        [
+          {
+            "node": "Has Rate Data?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Rate Data?": {
+      "main": [
+        [
+          {
+            "node": "Optimize Context for LLM",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Playwright HTML (Tunnel)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Playwright HTML (Tunnel)": {
+      "main": [
+        [
+          {
+            "node": "Extract Body (Playwright)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Body (Playwright)": {
+      "main": [
+        [
+          {
+            "node": "Optimize Context for LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF File": {
+      "main": [
+        [
+          {
+            "node": "Validate PDF Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate PDF Content": {
+      "main": [
+        [
+          {
+            "node": "PDF Blocked?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "3eff3978-4d06-4549-9a54-65adf8dc54d8",
+  "meta": {
+    "instanceId": "1618e2f459f31c8fc5b2c8230db6ae5636ce6f0cb05a8124de87b1bf1e2d6588"
+  },
+  "id": "sfTkRs6dWi3LDsUc",
+  "tags": []
+}

@@ -13,6 +13,14 @@ pnpm-debug.log*
 .env.test.local
 .env.production.local
 
+# Database dumps & backups (pueden contener datos y credenciales — NUNCA commitear)
+*.sql
+*.dump
+*.sql.gz
+*.backup
+# Excepción: esquema de referencia (solo estructura, sin datos)
+!esquema.sql
+
 # MCP config (contains API keys)
 .mcp.json
 

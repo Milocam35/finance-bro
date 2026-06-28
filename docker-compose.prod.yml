@@ -1,31 +1,35 @@
 services:
   # ============================================
-  # PostgreSQL Database
+  # Caddy — Reverse proxy + HTTPS automático (Let's Encrypt)
+  # Única puerta pública. Rutea subdominios a frontend y n8n.
   # ============================================
-  postgres:
-    image: postgres:16-alpine
-    container_name: financebro-postgres-prod
+  caddy:
+    image: caddy:2-alpine
+    container_name: financebro-caddy-prod
     restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:-admin@example.com}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
     networks:
       - financebro-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    # No exponer puerto externamente en producción
-    expose:
-      - "5432"
+    depends_on:
+      - frontend
+      - n8n
+    deploy:
+      resources:
+        limits:
+          memory: 128M
 
   # ============================================
-  # Redis Cache
+  # Redis Cache (caché de la app)
   # ============================================
   redis:
     image: redis:7-alpine
@@ -41,12 +45,16 @@ services:
       timeout: 10s
       retries: 3
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
-    # No exponer puerto externamente en producción
     expose:
       - "6379"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
   # ============================================
-  # Backend API (NestJS)
+  # Backend API (NestJS) — MS Productos
+  # DB en Supabase vía DATABASE_URL (sin postgres local)
   # ============================================
   backend:
     build:
@@ -60,12 +68,10 @@ services:
       NODE_ENV: production
       PORT: 3000
 
-      # Database
-      DATABASE_HOST: postgres
-      DATABASE_PORT: 5432
-      DATABASE_USER: ${POSTGRES_USER}
-      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
-      DATABASE_NAME: ${POSTGRES_DB}
+      # Database — Supabase (pooler transacción 6543 runtime / sesión 5432 migraciones)
+      DATABASE_URL: ${BACKEND_DATABASE_URL}
+      DATABASE_MIGRATION_URL: ${BACKEND_MIGRATION_URL}
+      DATABASE_SSL: "true"
 
       # Redis
       REDIS_HOST: redis
@@ -76,6 +82,7 @@ services:
       N8N_API_KEY: ${N8N_API_KEY}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-7d}
+      CORS_ORIGIN: https://app.${DOMAIN}
 
       # TypeORM
       TYPEORM_LOGGING: ${TYPEORM_LOGGING:-false}
@@ -84,8 +91,6 @@ services:
     networks:
       - financebro-network
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
@@ -94,18 +99,65 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
-    # No exponer puerto directamente, será accedido a través de Nginx
     expose:
       - "3000"
-    # Security options
     security_opt:
       - no-new-privileges:true
     read_only: true
     tmpfs:
       - /tmp
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
   # ============================================
-  # Frontend (React + Nginx)
+  # Users API (NestJS) — MS Usuarios (Auth JWT)
+  # DB en Supabase (proyecto usuarios) vía DATABASE_URL
+  # ============================================
+  users-api:
+    build:
+      context: ./finance-bro-users-api
+      dockerfile: Dockerfile
+      target: production
+    image: financebro-users-api:latest
+    container_name: financebro-users-api-prod
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+
+      # Database — Supabase (proyecto usuarios)
+      DATABASE_URL: ${USERS_DATABASE_URL}
+      DATABASE_MIGRATION_URL: ${USERS_MIGRATION_URL}
+      DATABASE_SSL: "true"
+
+      # Security
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-7d}
+    networks:
+      - financebro-network
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    expose:
+      - "3001"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+
+  # ============================================
+  # Frontend (React + Nginx) — gateway interno de /api y /api/auth
+  # No publica puerto: Caddy lo enruta (app.${DOMAIN})
   # ============================================
   frontend:
     build:
@@ -117,12 +169,12 @@ services:
     image: financebro-frontend:latest
     container_name: financebro-frontend-prod
     restart: always
-    ports:
-      - "${FRONTEND_PORT:-80}:80"
     networks:
       - financebro-network
     depends_on:
       backend:
+        condition: service_healthy
+      users-api:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
@@ -130,7 +182,8 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-    # Security options
+    expose:
+      - "80"
     security_opt:
       - no-new-privileges:true
     read_only: true
@@ -138,16 +191,104 @@ services:
       - /var/cache/nginx
       - /var/run
       - /tmp
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  # ============================================
+  # n8n — Automatización (autohospedado)
+  # Detrás de Caddy en n8n.${DOMAIN}. Metadata en n8n-postgres.
+  # ============================================
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: financebro-n8n-prod
+    restart: always
+    environment:
+      # Base de datos de metadatos (postgres dedicado)
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: n8n-postgres
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: n8n
+      DB_POSTGRESDB_USER: n8n
+      DB_POSTGRESDB_PASSWORD: ${N8N_DB_PASSWORD}
+
+      # Host / proxy
+      N8N_HOST: n8n.${DOMAIN}
+      N8N_PORT: 5678
+      N8N_PROTOCOL: https
+      N8N_EDITOR_BASE_URL: https://n8n.${DOMAIN}/
+      WEBHOOK_URL: https://n8n.${DOMAIN}/
+      N8N_PROXY_HOPS: 1
+      GENERIC_TIMEZONE: America/Bogota
+
+      # Seguridad
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+
+      # Variables que usan los workflows (ScrapingEngine + launchers)
+      API_URL: https://app.${DOMAIN}
+      N8N_API_KEY: ${N8N_API_KEY}
+      PLAYWRIGHT_API_KEY: ${PLAYWRIGHT_API_KEY}
+      PDF_SERVICE_URL: https://pdf.${DOMAIN}
+      SCRAPERAPI_KEY: ${SCRAPERAPI_KEY}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - financebro-network
+    depends_on:
+      n8n-postgres:
+        condition: service_healthy
+    expose:
+      - "5678"
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+
+  # ============================================
+  # n8n-postgres — Base de datos SOLO para metadatos de n8n
+  # (aislada de la app, que vive en Supabase)
+  # ============================================
+  n8n-postgres:
+    image: postgres:16-alpine
+    container_name: financebro-n8n-postgres-prod
+    restart: always
+    environment:
+      POSTGRES_USER: n8n
+      POSTGRES_PASSWORD: ${N8N_DB_PASSWORD}
+      POSTGRES_DB: n8n
+    volumes:
+      - n8n_pg_data:/var/lib/postgresql/data
+    networks:
+      - financebro-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U n8n -d n8n"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    expose:
+      - "5432"
+    deploy:
+      resources:
+        limits:
+          memory: 384M
 
 # ============================================
 # Volumes
 # ============================================
 volumes:
-  postgres_data:
-    driver: local
   redis_data:
     driver: local
   backend_logs:
+    driver: local
+  n8n_data:
+    driver: local
+  n8n_pg_data:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
     driver: local
 
 # ============================================

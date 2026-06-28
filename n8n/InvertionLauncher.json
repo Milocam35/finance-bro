@@ -1,0 +1,126 @@
+{
+  "name": "InvertionLauncher",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "il-manual-001",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1,3,5"
+            }
+          ]
+        }
+      },
+      "id": "il-schedule-001",
+      "name": "Mon-Wed-Fri 9AM Bogota",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -400,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    product_type: 'libre_inversion',\n    links_sheet: 'LinksLibreInversion',\n    data_sheet: 'DataLibreInversion',\n    needs_uvr: false,\n    normalization_rules: 'libre_inversion',\n    credit_type: 'Crédito de libre inversión',\n    exclude_terms: ['hipotecario', 'vivienda', 'vehículo', 'vehiculo', 'leasing habitacional', 'tarjeta de crédito', 'educativo', 'educación', 'microcrédito'],\n    keywords: [\n      'tasa', 'tasas', 'crédito', 'credito', 'libre inversión', 'libre inversion',\n      'consumo', 'libranza', 'nómina', 'nomina', 'personal',\n      'interés', 'interes', 'plazo', 'cuota', 'monto', 'financiación', 'financiacion',\n      'ea', 'efectivo anual', 'desde', 'hasta', 'fija', 'variable', 'mensual',\n      'porcentaje', 'descuento', 'garantía', 'garantia',\n      'libre destino', 'multiuso', 'disponible', 'remodelación', 'remodelacion',\n      'viaje', 'vacaciones', 'emergencia', 'proyecto',\n      'preaprobado', 'pre-aprobado', 'digital', 'en línea', 'en linea',\n      'desembolso inmediato', 'sin fiador', 'sin codeudor'\n    ],\n    priority_keywords: [\n      'libre inversión', 'libre inversion', 'crédito de consumo', 'credito de consumo',\n      'libranza', 'crédito de libranza', 'credito de libranza',\n      'crédito de nómina', 'credito de nomina', 'nómina', 'nomina',\n      'crédito personal', 'credito personal', 'libre destino',\n      'crédito preaprobado', 'credito preaprobado',\n      'crédito digital', 'credito digital',\n      'crédito rotativo', 'credito rotativo',\n      'adelanto de nómina', 'adelanto de nomina'\n    ],\n    pdf_prompt: 'Extrae SOLO información de tasas de CRÉDITO DE LIBRE INVERSIÓN / CONSUMO / LIBRANZA en Colombia de este PDF bancario.\\n\\nEXTRAE:\\n- Tasas E.A. (Efectivo Anual) para créditos de libre inversión, consumo o libranza\\n- Diferencia entre libre inversión tradicional y libranza/nómina (si aplica)\\n- Diferencia entre cliente preferencial y cliente nuevo (si aplica)\\n- IMPORTANTE: Diferencia entre crédito CON GARANTÍA (libranza/nómina) vs SIN GARANTÍA\\n  * Las libranzas/nómina suelen tener tasas más bajas\\n  * Si hay tasas separadas por modalidad, repórtalas POR SEPARADO\\n- Plazos, montos, condiciones, requisitos\\n- Descuentos por nómina o relación con el banco\\n\\nIGNORA COMPLETAMENTE:\\n- Créditos hipotecarios / de vivienda\\n- Créditos de vehículo\\n- Leasing habitacional\\n- Créditos educativos\\n- Tarjetas de crédito\\n- Microcréditos\\n- Información legal/regulatoria genérica\\n\\nFORMATO: Devuelve tablas en Markdown con columnas:\\n| Modalidad | Tipo Cliente | Tasa E.A. | Plazo Máx | Monto Máx | Garantía |\\n\\nDonde Modalidad = Libre Inversión, Libranza, Nómina, Consumo, Rotativo, Digital\\n\\nSi hay condiciones, requisitos o beneficios adicionales, inclúyelos debajo de cada tabla.',\n    user_prompt_suffix: 'Extrae TODOS los créditos de LIBRE INVERSIÓN / CONSUMO / LIBRANZA disponibles.\\nRecuerda:\\n- Cada combinación de modalidad (Libre Inversión/Libranza/Nómina/Digital/Rotativo) + tipo_cliente = un objeto separado\\n- Si el banco tiene tasas especiales para libranza o nómina, SIEMPRE créalos como objetos SEPARADOS\\n- Si NO diferencia por modalidad, usa loan_modality: \"Libre inversión\"\\n- SOLO créditos de libre inversión/consumo/libranza (NO vivienda, NO vehículo, NO educativo)\\n- Responde SOLO con el array JSON',\n    system_prompt: 'Eres un extractor de datos estructurados especializado EXCLUSIVAMENTE en tasas de créditos de LIBRE INVERSIÓN, CONSUMO y LIBRANZA en Colombia.\\n\\nRESPONDE ÚNICAMENTE con un array JSON válido. Sin explicaciones, sin markdown, sin ```.\\n\\n## REGLAS ESTRICTAS DE EXTRACCIÓN\\n\\n1. SOLO créditos de LIBRE INVERSIÓN, CONSUMO, LIBRANZA, NÓMINA, ROTATIVOS, DIGITALES\\n2. EXCLUYE SIEMPRE: créditos hipotecarios, vivienda, vehículo, leasing habitacional, educativos, tarjetas de crédito, microcréditos\\n3. Cada combinación ÚNICA de modalidad + tipo_cliente = un objeto JSON separado\\n4. Las tasas DEBEN ser E.A. (Efectivo Anual)\\n5. Si un campo no tiene información, usa null (NUNCA string vacío \"\")\\n6. Si hay rango de tasas (\"desde X% hasta Y%\"), usa rate_range con min y max\\n7. CRÍTICO: Muchos bancos colombianos ofrecen tasas DIFERENCIADAS para libranza/nómina vs libre inversión sin garantía. Si la página menciona tasas separadas, SIEMPRE crea objetos separados.\\n8. Si el banco NO diferencia por modalidad (misma tasa para todos), usa loan_modality: \"Libre inversión\"\\n\\n## VALORES EXACTOS PERMITIDOS (usa EXACTAMENTE estos strings)\\n\\n- credit_type: \"Crédito de libre inversión\" (SIEMPRE este valor exacto)\\n- loan_modality: \"Libre inversión\" | \"Libranza\" | \"Nómina\" | \"Consumo\" | \"Rotativo\" | \"Digital\" | \"Preaprobado\"\\n  * \"Libre inversión\" = crédito sin destinación específica, sin garantía de nómina\\n  * \"Libranza\" = descuento directo de nómina con convenio empresarial\\n  * \"Nómina\" = respaldado por recibo de nómina del banco\\n  * \"Consumo\" = crédito de consumo general\\n  * \"Rotativo\" = crédito rotativo / cupo rotativo\\n  * \"Digital\" = crédito 100% digital, desembolso inmediato\\n  * \"Preaprobado\" = crédito preaprobado para clientes existentes\\n- client_type: \"General\" | \"Preferencial\" | \"Nómina\" | \"Pensionado\" | \"Empleado público\" | \"Todos\"\\n  * \"General\" = cualquier cliente\\n  * \"Preferencial\" = clientes con historial o relación bancaria\\n  * \"Nómina\" = clientes con cuenta nómina en el banco\\n  * \"Pensionado\" = personas con pensión\\n  * \"Empleado público\" = empleados del sector público\\n  * \"Todos\" = cuando NO hay diferenciación por tipo de cliente\\n- rate_denomination: \"Pesos\" (SIEMPRE para libre inversión)\\n- rate_type: \"Tasa efectiva anual\" (SIEMPRE)\\n- payment_type: \"Cuota fija\" | \"Cuota variable\" | null\\n\\n## FORMATO DE TASA\\n- Formato: \"X.XX%\" (ejemplo: \"18.50%\")\\n- SIEMPRE usa punto decimal, NUNCA coma\\n- SIEMPRE incluye el símbolo %\\n\\n## ESQUEMA JSON\\n{\\n  \"bank\": \"string (nombre oficial del banco)\",\\n  \"credit_type\": \"Crédito de libre inversión\",\\n  \"loan_modality\": \"Libre inversión\" | \"Libranza\" | \"Nómina\" | \"Consumo\" | \"Rotativo\" | \"Digital\" | \"Preaprobado\",\\n  \"client_type\": \"General\" | \"Preferencial\" | \"Nómina\" | \"Pensionado\" | \"Empleado público\" | \"Todos\",\\n  \"rate_denomination\": \"Pesos\",\\n  \"rate_type\": \"Tasa efectiva anual\",\\n  \"rate\": \"string (ej: 18.50%)\",\\n  \"rate_range\": {\"min\": \"string\", \"max\": \"string\"} | null,\\n  \"description\": \"string corta\",\\n  \"conditions\": [\"string\", ...] | null,\\n  \"requirements\": [\"string\", ...] | null,\\n  \"min_amount\": \"string\" | null,\\n  \"max_amount\": \"string\" | null,\\n  \"max_term\": \"string (ej: 7 años)\" | null,\\n  \"payment_type\": \"Cuota fija\" | \"Cuota variable\" | null,\\n  \"additional_info\": {\\n    \"desembolso\": \"string (ej: Inmediato, 24 horas, 3 días hábiles)\" | null,\\n    \"requiere_codeudor\": \"string (ej: No, Sí para montos > $50M)\" | null,\\n    \"descuento_nomina\": \"string\" | null,\\n    \"seguro_deudor\": \"string\" | null,\\n    \"beneficio_tasa\": \"string (ej: -1% con cuenta nómina)\" | null\\n  } | null\\n}\\n\\n## EJEMPLO DE RESPUESTA CORRECTA\\n\\n[\\n  {\\n    \"bank\": \"Bancolombia\",\\n    \"credit_type\": \"Crédito de libre inversión\",\\n    \"loan_modality\": \"Libre inversión\",\\n    \"client_type\": \"General\",\\n    \"rate_denomination\": \"Pesos\",\\n    \"rate_type\": \"Tasa efectiva anual\",\\n    \"rate\": \"22.50%\",\\n    \"rate_range\": null,\\n    \"description\": \"Crédito de libre inversión sin destinación específica\",\\n    \"conditions\": [\"Plazo máximo 60 meses\", \"Desembolso en 24 horas\"],\\n    \"requirements\": [\"Ingresos desde 1 SMMLV\", \"Historial crediticio\"],\\n    \"min_amount\": \"$1,000,000\",\\n    \"max_amount\": \"$200,000,000\",\\n    \"max_term\": \"5 años\",\\n    \"payment_type\": \"Cuota fija\",\\n    \"additional_info\": {\\n      \"desembolso\": \"24 horas\",\\n      \"requiere_codeudor\": \"No\",\\n      \"descuento_nomina\": null,\\n      \"seguro_deudor\": \"Incluido\",\\n      \"beneficio_tasa\": null\\n    }\\n  },\\n  {\\n    \"bank\": \"Bancolombia\",\\n    \"credit_type\": \"Crédito de libre inversión\",\\n    \"loan_modality\": \"Libranza\",\\n    \"client_type\": \"Nómina\",\\n    \"rate_denomination\": \"Pesos\",\\n    \"rate_type\": \"Tasa efectiva anual\",\\n    \"rate\": \"16.80%\",\\n    \"rate_range\": null,\\n    \"description\": \"Crédito de libranza con descuento de nómina\",\\n    \"conditions\": [\"Plazo máximo 84 meses\", \"Convenio empresarial requerido\"],\\n    \"requirements\": [\"Cuenta nómina Bancolombia\", \"Antigüedad laboral mínima 6 meses\"],\\n    \"min_amount\": \"$1,000,000\",\\n    \"max_amount\": \"$300,000,000\",\\n    \"max_term\": \"7 años\",\\n    \"payment_type\": \"Cuota fija\",\\n    \"additional_info\": {\\n      \"desembolso\": \"Inmediato\",\\n      \"requiere_codeudor\": \"No\",\\n      \"descuento_nomina\": \"Descuento automático de nómina\",\\n      \"seguro_deudor\": \"Incluido\",\\n      \"beneficio_tasa\": \"-3% vs libre inversión tradicional\"\\n    }\\n  }\\n]'\n  }\n}];\n"
+      },
+      "id": "il-config-001",
+      "name": "Set Inversion Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -96,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sfTkRs6dWi3LDsUc",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "id": "il-execute-001",
+      "name": "Run ScrapingEngine",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        208,
+        112
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Inversion Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mon-Wed-Fri 9AM Bogota": {
+      "main": [
+        [
+          {
+            "node": "Set Inversion Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Inversion Config": {
+      "main": [
+        [
+          {
+            "node": "Run ScrapingEngine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "ba7455fb-7c01-4740-b32f-7785422fd85d",
+  "meta": {
+    "instanceId": "1618e2f459f31c8fc5b2c8230db6ae5636ce6f0cb05a8124de87b1bf1e2d6588"
+  },
+  "id": "mMqKtEoXjruy3YUt",
+  "tags": []
+}

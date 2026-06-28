@@ -1,0 +1,118 @@
+{
+  "name": "MortgageLauncher",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "ml-manual-001",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "ml-schedule-001",
+      "name": "Daily 6AM Bogota",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -400,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    product_type: 'hipotecario',\n    links_sheet: 'LinksVivienda',\n    links_sheet_mode: 'name',\n    data_sheet: 'DataVivienda',\n    data_sheet_gid: '0',\n    needs_uvr: true,\n    normalization_rules: 'mortgage',\n    credit_type: 'Crédito hipotecario para compra de vivienda',\n    exclude_terms: ['leasing', 'mejoramiento', 'construcción', 'consumo', 'libranza', 'vehículo', 'tarjeta'],\n    keywords: [\n      'tasa', 'tasas', 'crédito', 'credito', 'hipotecario', 'hipotecaria',\n      'vivienda', 'vis', 'uvr', 'pesos', 'ea', 'efectivo anual',\n      'interés', 'interes', 'plazo', 'cuota', 'monto', 'financiación',\n      'leasing', 'habitacional', 'smmlv', 'salario', 'mensual',\n      'desde', 'hasta', 'fija', 'variable', 'subsidio'\n    ],\n    priority_keywords: [],\n    pdf_prompt: 'Extrae SOLO información de tasas de CRÉDITO HIPOTECARIO PARA COMPRA DE VIVIENDA EN COLOMBIA de este PDF bancario.\\n\\nEXTRAE:\\n- Tasas E.A. (Efectivo Anual) para créditos hipotecarios de compra de vivienda\\n- Diferencia entre VIS y No VIS\\n- Diferencia entre UVR y Pesos\\n- Plazos, montos, condiciones, requisitos\\n\\nIGNORA COMPLETAMENTE:\\n- Leasing habitacional\\n- Créditos de mejoramiento de vivienda\\n- Créditos para constructores\\n- Créditos de consumo, libranza, vehículo\\n- Tarjetas de crédito\\n- Información legal/regulatoria genérica\\n\\nFORMATO: Devuelve tablas en Markdown con columnas:\\n| Tipo | Vivienda | Denominación | Tasa E.A. | Plazo Máx | Monto Máx | Financiación |\\n\\nSi hay condiciones, requisitos o beneficios adicionales, inclúyelos debajo de cada tabla.',\n    user_prompt_suffix: 'Extrae TODOS los créditos hipotecarios para COMPRA DE VIVIENDA disponibles.\\nRecuerda:\\n- Cada combinación VIS/No VIS + UVR/Pesos = un objeto separado\\n- SOLO compra de vivienda (NO leasing, NO mejoramiento, NO construcción)\\n- Responde SOLO con el array JSON',\n    system_prompt: 'Eres un extractor de datos estructurados especializado EXCLUSIVAMENTE en tasas de cr\\u00e9ditos hipotecarios para compra de vivienda en Colombia.\\n\\nRESPONDE \\u00daNICAMENTE con un array JSON v\\u00e1lido. Sin explicaciones, sin markdown, sin ```.\\n\\n## REGLAS ESTRICTAS DE EXTRACCI\\u00d3N\\n\\n1. SOLO cr\\u00e9ditos hipotecarios para COMPRA DE VIVIENDA\\n2. EXCLUYE SIEMPRE: leasing habitacional, mejoramiento de vivienda, construcci\\u00f3n, cr\\u00e9ditos de consumo, libranza, veh\\u00edculo, tarjetas de cr\\u00e9dito\\n3. Cada combinaci\\u00f3n \\u00daNICA de tipo_vivienda + denominaci\\u00f3n = un objeto JSON separado\\n4. Las tasas DEBEN ser E.A. (Efectivo Anual). Si ves M.V. (Mes Vencido), NO la incluyas a menos que puedas convertirla\\n5. Si un campo no tiene informaci\\u00f3n, usa null (NUNCA string vac\\u00edo \"\")\\n6. Si hay rango de tasas (\"desde X% hasta Y%\"), usa rate_range con min y max\\n\\n## VALORES EXACTOS PERMITIDOS (usa EXACTAMENTE estos strings)\\n\\n- credit_type: \"Cr\\u00e9dito hipotecario para compra de vivienda\" (SIEMPRE este valor exacto)\\n- housing_type: \"VIS\" | \"No VIS\" | \"Aplica para ambos\"\\n- rate_denomination: \"UVR\" | \"Pesos\"\\n- rate_type: \"Tasa efectiva anual\" (SIEMPRE este valor exacto)\\n- payment_type: \"Cuota fija\" | \"Cuota variable\" | null\\n\\n## FORMATO DE TASA\\n\\n- Para Pesos: \"X.XX%\" (ejemplo: \"12.50%\")\\n- Para UVR: \"UVR + X.XX%\" (ejemplo: \"UVR + 6.50%\")\\n- SIEMPRE usa punto decimal, NUNCA coma\\n- SIEMPRE incluye el s\\u00edmbolo %\\n\\n## ESQUEMA JSON\\n\\n{\\n  \"bank\": \"string (nombre oficial del banco, ej: Bancolombia)\",\\n  \"credit_type\": \"Cr\\u00e9dito hipotecario para compra de vivienda\",\\n  \"housing_type\": \"VIS\" | \"No VIS\" | \"Aplica para ambos\",\\n  \"rate_denomination\": \"UVR\" | \"Pesos\",\\n  \"rate_type\": \"Tasa efectiva anual\",\\n  \"rate\": \"string (ej: 10.50% o UVR + 6.50%)\",\\n  \"rate_range\": {\"min\": \"string\", \"max\": \"string\"} | null,\\n  \"description\": \"string corta\",\\n  \"conditions\": [\"string\", ...] | null,\\n  \"requirements\": [\"string\", ...] | null,\\n  \"min_amount\": \"string\" | null,\\n  \"max_amount\": \"string\" | null,\\n  \"max_term\": \"string (ej: 20 a\\u00f1os)\" | null,\\n  \"payment_type\": \"Cuota fija\" | \"Cuota variable\" | null,\\n  \"additional_info\": {\\n    \"descuento_nomina\": \"string\" | null,\\n    \"beneficio_avaluo\": \"string\" | null,\\n    \"financiacion_maxima\": \"string\" | null\\n  } | null\\n}\\n\\n## EJEMPLO DE RESPUESTA CORRECTA\\n\\n[\\n  {\\n    \"bank\": \"Bancolombia\",\\n    \"credit_type\": \"Cr\\u00e9dito hipotecario para compra de vivienda\",\\n    \"housing_type\": \"VIS\",\\n    \"rate_denomination\": \"UVR\",\\n    \"rate_type\": \"Tasa efectiva anual\",\\n    \"rate\": \"UVR + 6.50%\",\\n    \"rate_range\": null,\\n    \"description\": \"Cr\\u00e9dito hipotecario para vivienda de inter\\u00e9s social en UVR\",\\n    \"conditions\": [\"Valor comercial hasta 150 SMMLV\", \"Financiaci\\u00f3n hasta el 80%\"],\\n    \"requirements\": [\"Ingresos desde 1 SMMLV\", \"Aval\\u00fao y estudio jur\\u00eddico\"],\\n    \"min_amount\": null,\\n    \"max_amount\": \"$262,635,750\",\\n    \"max_term\": \"20 a\\u00f1os\",\\n    \"payment_type\": \"Cuota fija\",\\n    \"additional_info\": {\\n      \"descuento_nomina\": \"+200 pbs con Cuenta de N\\u00f3mina Bancolombia\",\\n      \"beneficio_avaluo\": null,\\n      \"financiacion_maxima\": \"80%\"\\n    }\\n  }\\n]'\n  }\n}];\n"
+      },
+      "id": "ml-config-001",
+      "name": "Set Mortgage Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -96,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sfTkRs6dWi3LDsUc",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "ml-execute-001",
+      "name": "Run ScrapingEngine",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        208,
+        112
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Mortgage Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily 6AM Bogota": {
+      "main": [
+        [
+          {
+            "node": "Set Mortgage Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Mortgage Config": {
+      "main": [
+        [
+          {
+            "node": "Run ScrapingEngine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "8e78e71e-7e83-4238-80fc-141586c6cf9d",
+  "meta": {
+    "instanceId": "1618e2f459f31c8fc5b2c8230db6ae5636ce6f0cb05a8124de87b1bf1e2d6588"
+  },
+  "id": "AecxfUC6Tnfz6bTf",
+  "tags": []
+}

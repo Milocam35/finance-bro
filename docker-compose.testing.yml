@@ -1,0 +1,53 @@
+# ============================================================
+# Override de TESTING en el VPS por IP (sin dominio, sin TLS)
+# ============================================================
+# Levanta el mismo stack de producción (DB real en Supabase) pero accesible
+# por http://IP_DEL_VPS:<puerto>, SIN Caddy/HTTPS.
+#
+# Uso (NO se incluye 'caddy' en la lista → no arranca):
+#   docker compose -f docker-compose.prod.yml -f docker-compose.testing.yml \
+#     up -d --build backend users-api frontend redis n8n n8n-postgres
+#
+# Requiere en el .env:  VPS_IP=<ip_publica_del_vps>
+# (opcional)            PDF_SERVICE_URL=<url del quick tunnel de Playwright>
+#
+# Abre los puertos en el firewall del VPS:
+#   ufw allow 80 && ufw allow 5678   (y 3000/3001 si quieres acceso directo)
+# ------------------------------------------------------------
+
+services:
+  # Frontend (SPA + gateway /api y /api/auth) → http://IP_VPS
+  frontend:
+    ports:
+      - "80:80"
+
+  # Backend → expuesto para debug directo / Swagger en http://IP_VPS:3000/api/docs
+  backend:
+    ports:
+      - "3000:3000"
+    environment:
+      # En testing por IP el SPA usa mismo origen (/api), pero por si pruebas
+      # el backend directo desde el navegador, se permite el origen por IP.
+      CORS_ORIGIN: http://${VPS_IP}
+
+  # Users API (auth) → expuesto para debug directo
+  users-api:
+    ports:
+      - "3001:3001"
+
+  # n8n → http://IP_VPS:5678 (modo HTTP, sin cookie segura)
+  n8n:
+    ports:
+      - "5678:5678"
+    environment:
+      N8N_PROTOCOL: http
+      N8N_HOST: ${VPS_IP}
+      N8N_EDITOR_BASE_URL: http://${VPS_IP}:5678/
+      WEBHOOK_URL: http://${VPS_IP}:5678/
+      # CRÍTICO: sin HTTPS, n8n rechaza el login si la cookie es "segura".
+      N8N_SECURE_COOKIE: "false"
+      N8N_PROXY_HOPS: 0
+      # En testing, n8n llega al backend por la red interna de Docker (sin salir a internet).
+      API_URL: http://backend:3000
+      # Playwright local: pega aquí la URL del quick tunnel (cambia en cada reinicio).
+      PDF_SERVICE_URL: ${PDF_SERVICE_URL:-}

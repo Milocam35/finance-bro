@@ -9,6 +9,7 @@ import { ProductosModule } from './productos/productos.module';
 import { ScrapingModule } from './scraping/scraping.module';
 import { HealthModule } from './health/health.module';
 import { SimulacionesModule } from './simulaciones/simulaciones.module';
+import { getDbConnectionOptions } from './database/db-config';
 
 // Importar entidades de catálogos
 import { EntidadFinanciera } from './catalogos/entities/entidad-financiera.entity';
@@ -41,11 +42,9 @@ import { EjecucionScraping } from './productos/entities/ejecucion-scraping.entit
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
-        host: configService.get('database.host'),
-        port: configService.get('database.port'),
-        username: configService.get('database.username'),
-        password: configService.get('database.password'),
-        database: configService.get('database.database'),
+        // Usa DATABASE_URL (pooler de transacción 6543 en Supabase) si está
+        // definida; si no, cae a las variables DATABASE_* (Docker local).
+        ...getDbConnectionOptions(),
         entities: [
           // Catálogos
           EntidadFinanciera,

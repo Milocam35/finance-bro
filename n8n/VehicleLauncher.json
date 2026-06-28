@@ -1,0 +1,118 @@
+{
+  "name": "VehicleLauncher",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "vl-manual-001",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * 1,3,5"
+            }
+          ]
+        }
+      },
+      "id": "vl-schedule-001",
+      "name": "Mon-Wed-Fri 7AM Bogota",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -400,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    product_type: 'vehiculo',\n    links_sheet: 'LinksVehiculo',\n    data_sheet: 'DataPruebas',\n    needs_uvr: false,\n    normalization_rules: 'vehicle',\n    credit_type: 'Crédito de vehículo',\n    exclude_terms: ['hipotecario', 'vivienda', 'leasing habitacional', 'consumo', 'libranza', 'tarjeta'],\n    keywords: [\n      'tasa', 'tasas', 'crédito', 'credito', 'vehículo', 'vehiculo',\n      'automóvil', 'automovil', 'carro', 'moto', 'motocicleta',\n      'usado', 'nuevo', 'modelo', 'financiación', 'financiacion',\n      'plazo', 'cuota', 'monto', 'desde', 'hasta', 'fija', 'variable',\n      'interés', 'interes', 'ea', 'efectivo anual', 'seguro', 'prenda',\n      'garantía', 'garantia', 'mensual', 'porcentaje',\n      'eléctrico', 'electrico', 'híbrido', 'hibrido', 'sostenible', 'verde', 'eco', 'electric', 'hybrid'\n    ],\n    priority_keywords: [\n      'vehículo', 'vehiculo', 'crédito de veh', 'credito de veh',\n      'automóvil', 'automovil', 'moto', 'carro', 'eléctrico', 'electrico',\n      'híbrido', 'hibrido', 'sostenible', 'verde', 'eco', 'electric', 'hybrid',\n      'nmv', 'crédito otros', 'credito otros',\n      'crédito productivo', 'credito productivo', 'taxi',\n      'vehículos nuevos', 'vehiculos nuevos', 'vehículos usados', 'vehiculos usados',\n      'crédito de vehículos', 'credito de vehiculos'\n    ],\n    pdf_prompt: 'Extrae SOLO información de tasas de CRÉDITO DE VEHÍCULO en Colombia de este PDF bancario.\\n\\nEXTRAE:\\n- Tasas E.A. (Efectivo Anual) para créditos de vehículo\\n- Diferencia entre vehículo nuevo y usado\\n- Diferencia entre automóvil y moto (si aplica)\\n- IMPORTANTE: Diferencia entre vehículo TRADICIONAL (gasolina/diésel) vs ELÉCTRICO vs HÍBRIDO\\n  * Muchos bancos ofrecen tasas preferenciales para eléctricos/híbridos\\n  * Si hay tasas separadas por motorización, repórtalas POR SEPARADO\\n- Plazos, montos, condiciones, requisitos\\n- Porcentaje de financiación\\n- Antigüedad máxima del vehículo (para usados)\\n\\nIGNORA COMPLETAMENTE:\\n- Créditos hipotecarios / de vivienda\\n- Leasing habitacional\\n- Créditos de consumo o libranza\\n- Tarjetas de crédito\\n- Información legal/regulatoria genérica\\n\\nFORMATO: Devuelve tablas en Markdown con columnas:\\n| Tipo Vehículo | Nuevo/Usado | Motorización | Tasa E.A. | Plazo Máx | Monto Máx | Financiación |\\n\\nDonde Motorización = Tradicional, Eléctrico, Híbrido, Eléctrico/Híbrido, o Todos (si no diferencia)\\n\\nSi hay condiciones, requisitos o beneficios adicionales, inclúyelos debajo de cada tabla.',\n    user_prompt_suffix: 'Extrae TODOS los créditos de VEHÍCULO disponibles.\\nRecuerda:\\n- Cada combinación Nuevo/Usado + Automóvil/Moto + motorización = un objeto separado\\n- Si el banco tiene tasas especiales para eléctricos/híbridos, SIEMPRE créalos como objetos SEPARADOS del tradicional\\n- Si NO diferencia por motorización, usa vehicle_fuel_type: \"Todos\"\\n- SOLO créditos de vehículo (NO vivienda, NO consumo, NO leasing habitacional)\\n- Responde SOLO con el array JSON',\n    system_prompt: 'Eres un extractor de datos estructurados especializado EXCLUSIVAMENTE en tasas de créditos de VEHÍCULO en Colombia.\\n\\nRESPONDE ÚNICAMENTE con un array JSON válido. Sin explicaciones, sin markdown, sin backticks.\\n\\n## REGLAS ESTRICTAS DE EXTRACCIÓN\\n\\n1. SOLO créditos de VEHÍCULO (automóvil, moto, camión, etc.)\\n2. EXCLUYE SIEMPRE: créditos hipotecarios, vivienda, leasing habitacional, consumo, libranza, tarjetas de crédito\\n3. Cada combinación ÚNICA de tipo_vehiculo (nuevo/usado) + categoría (automóvil/moto) + motorización (tradicional/eléctrico/híbrido) = un objeto JSON separado\\n4. Las tasas DEBEN ser E.A. (Efectivo Anual)\\n5. Si un campo no tiene información, usa null (NUNCA string vacío \"\")\\n6. Si hay rango de tasas (\"desde X% hasta Y%\"), usa rate_range con min y max\\n7. CRÍTICO: Muchos bancos colombianos ofrecen tasas DIFERENCIADAS (más bajas) para vehículos eléctricos e híbridos. Si la página menciona tasas para eléctricos/híbridos, SIEMPRE crea objetos separados para cada motorización.\\n8. Si el banco NO diferencia por motorización (misma tasa para todos), usa vehicle_fuel_type: \"Todos\"\\n\\n## VALORES EXACTOS PERMITIDOS (usa EXACTAMENTE estos strings)\\n\\n- credit_type: \"Crédito de vehículo\" (SIEMPRE)\\n- vehicle_type: \"Nuevo\" | \"Usado\" | \"Ambos\"\\n- vehicle_category: \"Automóvil\" | \"Moto\" | \"Ambos\"\\n- vehicle_fuel_type: \"Tradicional\" | \"Eléctrico\" | \"Híbrido\" | \"Eléctrico/Híbrido\" | \"Todos\"\\n  * \"Tradicional\" = gasolina, diésel, gas (combustión interna)\\n  * \"Eléctrico\" = 100% eléctrico (BEV)\\n  * \"Híbrido\" = híbrido enchufable o no enchufable (HEV, PHEV)\\n  * \"Eléctrico/Híbrido\" = cuando el banco agrupa eléctricos e híbridos con la misma tasa\\n  * \"Todos\" = cuando NO hay diferenciación por motorización (misma tasa para todos)\\n- rate_denomination: \"Pesos\" (SIEMPRE para vehículos)\\n- rate_type: \"Tasa efectiva anual\" (SIEMPRE)\\n- payment_type: \"Cuota fija\" | \"Cuota variable\" | null\\n\\n## FORMATO DE TASA\\n- Formato: \"X.XX%\" (ejemplo: \"12.50%\")\\n- SIEMPRE usa punto decimal, NUNCA coma\\n- SIEMPRE incluye el símbolo %\\n\\n## ESQUEMA JSON\\n{\\n  \"bank\": \"string (nombre oficial del banco)\",\\n  \"credit_type\": \"Crédito de vehículo\",\\n  \"vehicle_type\": \"Nuevo\" | \"Usado\" | \"Ambos\",\\n  \"vehicle_category\": \"Automóvil\" | \"Moto\" | \"Ambos\",\\n  \"vehicle_fuel_type\": \"Tradicional\" | \"Eléctrico\" | \"Híbrido\" | \"Eléctrico/Híbrido\" | \"Todos\",\\n  \"rate_denomination\": \"Pesos\",\\n  \"rate_type\": \"Tasa efectiva anual\",\\n  \"rate\": \"string (ej: 14.50%)\",\\n  \"rate_range\": {\"min\": \"string\", \"max\": \"string\"} | null,\\n  \"description\": \"string corta\",\\n  \"conditions\": [\"string\", ...] | null,\\n  \"requirements\": [\"string\", ...] | null,\\n  \"min_amount\": \"string\" | null,\\n  \"max_amount\": \"string\" | null,\\n  \"max_term\": \"string (ej: 7 años)\" | null,\\n  \"payment_type\": \"Cuota fija\" | \"Cuota variable\" | null,\\n  \"additional_info\": {\\n    \"financiacion_maxima\": \"string\" | null,\\n    \"antiguedad_maxima\": \"string (ej: 10 años)\" | null,\\n    \"seguro_obligatorio\": \"string\" | null,\\n    \"descuento_nomina\": \"string\" | null\\n  } | null\\n}\\n\\n## EJEMPLO - Banco con tasas diferenciadas por motorización\\n[\\n  {\\n    \"bank\": \"Bancolombia\",\\n    \"credit_type\": \"Crédito de vehículo\",\\n    \"vehicle_type\": \"Nuevo\",\\n    \"vehicle_category\": \"Automóvil\",\\n    \"vehicle_fuel_type\": \"Tradicional\",\\n    \"rate_denomination\": \"Pesos\",\\n    \"rate_type\": \"Tasa efectiva anual\",\\n    \"rate\": \"14.50%\",\\n    \"rate_range\": null,\\n    \"description\": \"Crédito vehículo nuevo tradicional (gasolina/diésel)\",\\n    \"conditions\": [\"Financiación hasta el 80%\", \"Plazo máximo 84 meses\"],\\n    \"requirements\": [\"Ingresos desde 2 SMMLV\"],\\n    \"min_amount\": null,\\n    \"max_amount\": \"$200,000,000\",\\n    \"max_term\": \"7 años\",\\n    \"payment_type\": \"Cuota fija\",\\n    \"additional_info\": { \"financiacion_maxima\": \"80%\", \"antiguedad_maxima\": null, \"seguro_obligatorio\": \"Seguro todo riesgo\", \"descuento_nomina\": null }\\n  }\\n]'\n  }\n}];\n"
+      },
+      "id": "vl-config-001",
+      "name": "Set Vehicle Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -96,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sfTkRs6dWi3LDsUc",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "vl-execute-001",
+      "name": "Run ScrapingEngine",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        208,
+        112
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Vehicle Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mon-Wed-Fri 7AM Bogota": {
+      "main": [
+        [
+          {
+            "node": "Set Vehicle Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Vehicle Config": {
+      "main": [
+        [
+          {
+            "node": "Run ScrapingEngine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "6ff5b029-bc21-4923-9ee5-73a698ecb09a",
+  "meta": {
+    "instanceId": "1618e2f459f31c8fc5b2c8230db6ae5636ce6f0cb05a8124de87b1bf1e2d6588"
+  },
+  "id": "8jIjg9Q02PwjO4WH",
+  "tags": []
+}
