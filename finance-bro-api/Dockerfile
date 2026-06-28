@@ -65,8 +65,8 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
 # Usar dumb-init como entrypoint
 ENTRYPOINT ["dumb-init", "--"]
 
-# Comando de inicio
-CMD ["node", "dist/main"]
+# Comando de inicio (el build emite dist/src/main.js por la estructura del proyecto)
+CMD ["node", "dist/src/main"]
 
 # ============================================
 # Stage 4: Development (para docker-compose)
