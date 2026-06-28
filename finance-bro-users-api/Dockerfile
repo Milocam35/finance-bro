@@ -5,6 +5,9 @@ FROM node:20-alpine AS dependencies
 
 WORKDIR /app
 
+# Herramientas para compilar módulos nativos (bcrypt) en Alpine
+RUN apk add --no-cache python3 make g++
+
 COPY package*.json ./
 
 RUN npm ci --only=production && \
@@ -16,6 +19,9 @@ RUN npm ci --only=production && \
 FROM node:20-alpine AS build
 
 WORKDIR /app
+
+# Herramientas para compilar módulos nativos (bcrypt) en Alpine
+RUN apk add --no-cache python3 make g++
 
 COPY package*.json ./
 
@@ -58,6 +64,9 @@ CMD ["node", "dist/main"]
 FROM node:20-alpine AS development
 
 WORKDIR /app
+
+# Herramientas para compilar módulos nativos (bcrypt) en Alpine
+RUN apk add --no-cache python3 make g++
 
 RUN npm install -g @nestjs/cli
 
